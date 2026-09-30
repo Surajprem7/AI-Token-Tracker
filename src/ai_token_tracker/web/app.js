@@ -4,7 +4,9 @@
 const $ = (id) => document.getElementById(id);
 const TOKEN = new URLSearchParams(location.search).get("t") || "";
 const DAY = 86400000;
-const KNOWN_TOOL_SLOTS = { "Codex CLI": 1, "Claude Code": 2, "Gemini CLI": 3 };
+// Fixed colour per tool, so a tool keeps its colour whatever else is installed.
+const KNOWN_TOOL_SLOTS = { "Codex CLI": 1, "Claude Code": 2, "Gemini CLI": 3, "Qwen Code": 4,
+  "OpenCode": 5, "Cline": 6, "Roo Code": 7, "Kilo Code": 8 };
 const SVG_NS = "http://www.w3.org/2000/svg";
 
 const store = {
@@ -658,12 +660,16 @@ function turnNode(t, n) {
 
 function renderSources() {
   const d = state.data;
+  const colorOf = (name) => {
+    const i = d.tools.indexOf(name.replace(/ \(.*\)$/, ""));  // "Roo Code (VS Code)" -> "Roo Code"
+    return slotColor(i >= 0 ? state.toolColor[i] : KNOWN_TOOL_SLOTS[name] || 0);
+  };
   $("sourceList").innerHTML = d.sources.map((s) => `
-    <div class="source"><span class="dot" style="background:${slotColor(KNOWN_TOOL_SLOTS[s.tool] || 0)}"></span>
+    <div class="source"><span class="dot" style="background:${colorOf(s.tool)}"></span>
       <b>${esc(s.tool)}</b>
       <span class="badge ${s.found ? "on" : ""}">${s.found ? `${fmt(s.files)} file${s.files === 1 ? "" : "s"}` : "not found"}</span>
       <span class="how">${esc(s.how)}</span>
-      <span class="path">${s.paths.map(esc).join("<br>")}</span></div>`).join("");
+      <span class="path">${s.paths.map(esc).join("<br>")}${s.also_checked ? `<br>(and ${s.also_checked} more places)` : ""}</span></div>`).join("");
   const p = d.pricing;
   $("pricingInfo").innerHTML = `<dl class="kv">
     <dt>Price list</dt><dd>${p.source === "online" ? "Downloaded" : "Bundled with the app"}${p.updated ? `, ${esc(p.updated)}` : ""}</dd>

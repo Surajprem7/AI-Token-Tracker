@@ -8,12 +8,19 @@ It only reads those files. It never changes them and never sends anything anywhe
 
 ## Which AIs it tracks
 
-| AI tool | Where it reads from | Setup |
+| AI tool | Where it reads from (Windows: the same paths under your user folder) | Setup |
 |---|---|---|
 | **Claude Code** (terminal, VS Code, JetBrains, Desktop, web, Agent SDK) | `~/.claude/projects/` | none |
 | **OpenAI Codex CLI** (terminal, VS Code) | `~/.codex/sessions/` (or `$CODEX_HOME`) | none |
 | **Google Gemini CLI** | `~/.gemini/tmp/*/chats/` | none |
+| **Qwen Code** | `~/.qwen/projects/*/chats/` (or `$QWEN_HOME`) | none |
+| **OpenCode** | `~/.local/share/opencode/opencode.db` (and older `storage/` files) | none |
+| **Cline** app / CLI | `~/.cline/data/sessions/` | none |
+| **Cline, Roo Code, Kilo Code** in VS Code, Cursor, Windsurf, VSCodium, Trae or Kiro | the editor's `User/globalStorage/<extension>/tasks/` folder (Windows `%APPDATA%\Code\…`, macOS `~/Library/Application Support/Code/…`, Linux `~/.config/Code/…`) | none |
 | **Any other AI** (ChatGPT/OpenAI API, Anthropic API, Ollama, Grok, your own scripts…) | `~/.ai-token-tracker/usage/*.jsonl` or `*.csv` | log it yourself, see below |
+
+Roo Code and Kilo Code don't log which model they used. For those, the tracker shows the cost figure the extension recorded itself.
+`ai-tokens --sources` (or the Sources page) shows which of these it found on your computer.
 
 Chats on the ChatGPT, claude.ai or Gemini websites and mobile apps, and tools such as GitHub Copilot or Cursor, don't reveal token counts.
 Nothing can track those automatically. If you know the numbers, you can still add them by hand.
@@ -91,13 +98,27 @@ There is also a portable `AITokenTracker.exe` if you'd rather not install anythi
 Download `AITokenTracker-macOS.zip` or `AITokenTracker-linux.tar.gz` from the same place.
 On macOS the app is unsigned, so the first time you open it, right-click it and choose *Open*.
 
-### Any computer with Python 3.9+ (pip)
+### Any computer with Python 3.9+ (pip): Windows, macOS or Linux
+This is the quickest way to try it before the installers are built.
+
+**Windows**
+1. Install Python from [python.org](https://www.python.org/downloads/). Keep the "py launcher" option ticked.
+2. Open **PowerShell** in the folder where you saved the `.whl` file and run:
+   ```powershell
+   py -m pip install --user "ai_token_tracker-2.1.0-py3-none-any.whl[app]"
+   py -m ai_token_tracker            # opens the dashboard window
+   py -m ai_token_tracker --stats    # command-line summary
+   ```
+   If the `[app]` part fails to install, run the same command without `[app]`. The dashboard then opens in your browser instead.
+
+**macOS**
 ```bash
-pip install "ai_token_tracker-2.0.0-py3-none-any.whl[app]"   # [app] adds the native window; leave it off to use your browser
-ai-tokens-gui     # opens the dashboard
-ai-tokens         # command-line version
-pip uninstall ai-token-tracker
+python3 -m pip install --user "ai_token_tracker-2.1.0-py3-none-any.whl[app]"
+python3 -m ai_token_tracker            # opens the dashboard window
 ```
+If macOS doesn't have Python yet, `python3` offers to install the Command Line Tools, or you can use [python.org](https://www.python.org/downloads/).
+
+To uninstall: `py -m pip uninstall ai-token-tracker` (Windows) or `python3 -m pip uninstall ai-token-tracker` (macOS/Linux).
 
 ## Command line
 
@@ -149,5 +170,5 @@ python -m unittest discover -s tests   # reader tests for every AI tool
   No code or assets were copied. Everything here was written from scratch.
 - Model prices come from [LiteLLM](https://github.com/BerriAI/litellm)'s public price list (MIT).
 
-To build the apps, open **Actions → Build apps → Run workflow** in GitHub, or push a tag such as `v2.0.0` to publish a Release.
+To build the apps, open **Actions → Build apps → Run workflow** in GitHub, or push a tag such as `v2.1.0` to publish a Release.
 That builds the Windows installer and portable `.exe`, the macOS app, the Linux binary and the Python wheel.

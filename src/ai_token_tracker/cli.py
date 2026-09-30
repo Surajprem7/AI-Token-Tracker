@@ -187,7 +187,19 @@ def find_session(sessions: list[Session], ref: str) -> Session | None:
 # --------------------------------------------------------------------------- #
 
 
+def _prepare_console() -> None:
+    """Windows consoles may not print ▶ / → or ANSI colours by default."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
+    if os.name == "nt" and USE_COLOR:
+        os.system("")  # switches on ANSI colour handling in the classic Windows console
+
+
 def main(argv: list[str] | None = None) -> int:
+    _prepare_console()
     try:
         return _main(argv)
     except BrokenPipeError:  # output piped into `head` etc.
@@ -238,6 +250,9 @@ def _main(argv: list[str] | None = None) -> int:
             print(f"{bold(row['tool']):<24} {state}")
             for p in row["paths"]:
                 print(f"    {dim(p)}")
+            if row.get("also_checked"):
+                more = row["also_checked"]
+                print(f"    {dim(f'(and {more} more places)')}")
         info = pricing_info()
         print(f"{bold('Prices'):<24} {info['models']:,} models ({info['source']}, {info['updated']}), "
               f"{info['overrides']} of your own")

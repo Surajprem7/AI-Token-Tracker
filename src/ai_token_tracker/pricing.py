@@ -137,6 +137,8 @@ def apply_costs(sessions) -> None:
     for s in sessions:
         for call in s.calls:
             c = cost(call.model, call.usage)
+            if c is None and call.reported_cost is not None:
+                c = call.reported_cost  # e.g. Roo Code logs its own cost but not the model
             if c is None:
                 call.usage.cost, call.usage.unpriced = 0.0, call.usage.total
             else:

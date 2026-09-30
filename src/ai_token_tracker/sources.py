@@ -21,11 +21,15 @@ from .core import ApiCall, Session, Turn, Usage, parse_ts, read_jsonl
 
 def load_other_tools() -> list[Session]:
     sessions: list[Session] = []
-    for loader in (load_codex_sessions, load_gemini_sessions, load_custom_sessions):
+    from . import more_sources as more
+
+    loaders = (load_codex_sessions, load_gemini_sessions, more.load_opencode_sessions, more.load_cline_sessions,
+               more.load_vscode_extension_tasks, more.load_qwen_sessions, load_custom_sessions)
+    for loader in loaders:
         try:
             sessions += loader()
-        except OSError:
-            continue  # unreadable folder: skip that tool rather than fail
+        except (OSError, ValueError, TypeError, KeyError, AttributeError):
+            continue  # unreadable or unexpected data: skip that tool rather than fail
     return [s for s in sessions if s.calls]
 
 
@@ -361,8 +365,11 @@ def source_status(claude_roots: list[Path] | None = None) -> list[dict]:
                 files += sum(1 for _ in p.rglob(pattern))
             except OSError:
                 pass
-        return {"tool": tool, "paths": [str(p) for p in paths], "found": bool(found),
-                "files": files, "how": how}
+        shown = found or paths[:1]  # where data is, or one example of where we looked
+        return {"tool": tool, "paths": [str(p) for p in shown], "found": bool(found),
+                "files": files, "how": how, "also_checked": len(paths) - len(shown)}
+
+    from . import more_sources as more
 
     claude = claude_roots if claude_roots is not None else default_roots()
     return [
@@ -372,6 +379,15 @@ def source_status(claude_roots: list[Path] | None = None) -> list[dict]:
             "Automatic. Reads Codex rollout logs (set CODEX_HOME if you moved them)."),
         row("Gemini CLI", gemini_tmp_dirs() or [Path.home() / ".gemini" / "tmp"], "*.json*",
             "Automatic. Reads Gemini CLI chat logs."),
+        row("OpenCode", [more.opencode_data_dir()], "opencode*.db",
+            "Automatic. Reads OpenCode's local database (and older storage/ files)."),
+        row("Cline (app / CLI)", [more.cline_dir() / "data" / "sessions"], "*.messages.json",
+            "Automatic. Reads the sessions the Cline app and CLI save."),
+        *[row(f"{tool} (VS Code)", [d / "globalStorage" / ext for d in more.vscode_user_dirs()], "ui_messages.json",
+              f"Automatic. Reads {tool} task history in VS Code, Cursor, Windsurf and other VS Code-based editors.")
+          for ext, tool in more.VSCODE_EXTENSIONS.items()],
+        row("Qwen Code", [more.qwen_dir() / "projects"], "*.jsonl",
+            "Automatic. Reads Qwen Code chat logs (set QWEN_HOME if you moved them)."),
         row("Custom log", [custom_dir()], "*.*",
             "Any other AI: `ai-tokens --add`, log_usage() in your scripts, or drop a CSV here."),
     ]

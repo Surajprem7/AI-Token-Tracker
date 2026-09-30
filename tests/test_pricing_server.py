@@ -88,7 +88,8 @@ class ServerTests(unittest.TestCase):
         call = data["sessions"][0]["turns"][0]["c"][0]
         self.assertEqual(call[3:5], [1000, 200])
         self.assertGreater(call[7], 0)  # gpt-5 has a price
-        self.assertEqual({s["tool"] for s in data["sources"]}, {"Claude Code", "Codex CLI", "Gemini CLI", "Custom log"})
+        self.assertTrue({"Claude Code", "Codex CLI", "Gemini CLI", "OpenCode", "Qwen Code", "Custom log"}
+                        <= {s["tool"] for s in data["sources"]})
 
     def test_rejects_other_hosts(self):
         # DNS-rebinding style request: right port, wrong Host header

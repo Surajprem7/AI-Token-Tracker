@@ -57,7 +57,8 @@ class ApiCall:
     model: str
     usage: Usage
     subagent: bool = False
-    app: str = ""  # which Claude app sent the request (terminal, desktop, web, ...)
+    app: str = ""  # which app sent the request (terminal, desktop, web, IDE, ...)
+    reported_cost: float | None = None  # cost the tool itself logged, used when we have no price
 
 
 @dataclass
