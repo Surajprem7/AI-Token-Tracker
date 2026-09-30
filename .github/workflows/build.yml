@@ -31,9 +31,10 @@ jobs:
       - name: Standalone app
         shell: bash
         run: |
-          pip install .
-          pyinstaller --noconfirm --onefile --windowed --name AITokenTracker packaging/app.py
-          pyinstaller --noconfirm --onefile --console --name ai-tokens packaging/cli.py
+          # Windows/macOS get a native app window (pywebview); Linux opens the dashboard in the browser.
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then pip install .; EXTRA=""; else pip install ".[app]"; EXTRA="--collect-all webview"; fi
+          pyinstaller --noconfirm --onefile --windowed --name AITokenTracker --collect-data ai_token_tracker $EXTRA packaging/app.py
+          pyinstaller --noconfirm --onefile --console --name ai-tokens --collect-data ai_token_tracker packaging/cli.py
       - name: Windows installer
         if: matrix.os == 'windows-latest'
         shell: pwsh

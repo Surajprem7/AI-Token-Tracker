@@ -342,3 +342,36 @@ def load_custom_sessions() -> list[Session]:
         events.sort(key=lambda ev: (ev[2] if ev[0] == "prompt" else ev[1].timestamp) or datetime.min.replace(tzinfo=timezone.utc))
         out.append(_build(s, events))
     return out
+
+
+# --------------------------------------------------------------------------- #
+# Where each tool's data lives (for the Sources page / --sources)
+# --------------------------------------------------------------------------- #
+
+
+def source_status(claude_roots: list[Path] | None = None) -> list[dict]:
+    """One row per supported tool: where we look, and whether anything is there."""
+    from .core import default_roots
+
+    def row(tool: str, paths: list[Path], pattern: str, how: str) -> dict:
+        found = [p for p in paths if p.is_dir()]
+        files = 0
+        for p in found:
+            try:
+                files += sum(1 for _ in p.rglob(pattern))
+            except OSError:
+                pass
+        return {"tool": tool, "paths": [str(p) for p in paths], "found": bool(found),
+                "files": files, "how": how}
+
+    claude = claude_roots if claude_roots is not None else default_roots()
+    return [
+        row("Claude Code", claude or [Path.home() / ".claude" / "projects"], "*.jsonl",
+            "Automatic. Reads the session transcripts Claude Code saves."),
+        row("Codex CLI", [codex_home() / "sessions", codex_home() / "archived_sessions"], "*.jsonl",
+            "Automatic. Reads Codex rollout logs (set CODEX_HOME if you moved them)."),
+        row("Gemini CLI", gemini_tmp_dirs() or [Path.home() / ".gemini" / "tmp"], "*.json*",
+            "Automatic. Reads Gemini CLI chat logs."),
+        row("Custom log", [custom_dir()], "*.*",
+            "Any other AI: `ai-tokens --add`, log_usage() in your scripts, or drop a CSV here."),
+    ]

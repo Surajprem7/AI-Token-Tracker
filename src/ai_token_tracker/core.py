@@ -32,18 +32,22 @@ class Usage:
     output: int = 0
     cache_write: int = 0
     cache_read: int = 0
+    cache_write_1h: int = 0  # part of cache_write that used the 1-hour cache (priced higher)
+    cost: float = 0.0        # estimated USD, filled in by pricing.apply_costs()
+    unpriced: int = 0        # tokens from models with no known price
 
     @property
     def total(self) -> int:
         return self.input + self.output + self.cache_write + self.cache_read
 
     def add(self, other: "Usage") -> None:
-        for f in TOKEN_FIELDS:
+        for f in TOKEN_FIELDS + ("cache_write_1h", "cost", "unpriced"):
             setattr(self, f, getattr(self, f) + getattr(other, f))
 
     def to_dict(self) -> dict:
         d = {f: getattr(self, f) for f in TOKEN_FIELDS}
         d["total"] = self.total
+        d["cost_usd"] = round(self.cost, 6)
         return d
 
 
@@ -179,8 +183,8 @@ def parse_ts(value) -> datetime | None:
 
 
 def usage_from(raw: dict) -> Usage:
-    def n(key: str) -> int:
-        v = raw.get(key)
+    def n(key: str, src=raw) -> int:
+        v = src.get(key) if isinstance(src, dict) else None
         return v if isinstance(v, int) else 0
 
     return Usage(
@@ -188,6 +192,7 @@ def usage_from(raw: dict) -> Usage:
         output=n("output_tokens"),
         cache_write=n("cache_creation_input_tokens"),
         cache_read=n("cache_read_input_tokens"),
+        cache_write_1h=n("ephemeral_1h_input_tokens", raw.get("cache_creation")),
     )
 
 
@@ -418,7 +423,10 @@ def load_sessions(roots: list[Path] | None = None, project_filter: str | None = 
     """
     from .sources import load_other_tools
 
+    from .pricing import apply_costs
+
     sessions = load_claude_sessions(default_roots() if roots is None else roots) + load_other_tools()
+    apply_costs(sessions)
     if project_filter:
         needle = project_filter.lower()
         sessions = [s for s in sessions if needle in f"{s.project} {s.cwd} {s.path}".lower()]
@@ -433,6 +441,8 @@ def load_sessions(roots: list[Path] | None = None, project_filter: str | None = 
 def load_claude_sessions(roots: list[Path]) -> list[Session]:
     sessions: list[Session] = []
     for root in roots:
+        if not root.is_dir():
+            continue  # a folder that doesn't exist (yet) just has no sessions
         for proj in sorted(p for p in root.iterdir() if p.is_dir()):
             for path in sorted(proj.glob("*.jsonl")):
                 s = load_session(path, proj.name)

@@ -1,6 +1,6 @@
 """AI Token Tracker - see how many tokens each AI coding session spent."""
 
-__version__ = "1.1.0"
+__version__ = "2.0.0"
 
 
 def log_usage(*args, **kwargs):

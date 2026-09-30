@@ -1,6 +1,6 @@
 # AI Token Tracker
 
-A small desktop app (plus a command-line tool) that shows how many tokens you spend with your AI tools:
+A small desktop app (plus a command-line tool) that shows how many tokens you spend with your AI tools, and roughly what they cost:
 per session, per prompt, per AI tool, per engine (model), per app and per project.
 
 It reads the log files the AI tools already save on your computer. It needs **no API keys, no login and no internet**.
@@ -40,19 +40,41 @@ Or drop a CSV into `~/.ai-token-tracker/usage/`. It needs these columns:
 `timestamp, tool, model, input_tokens, output_tokens`. These are optional: `session, project, prompt, cache_read_tokens, cache_write_tokens`.
 If `tool` is missing, the file name is used as the tool name.
 
-## The app
+## The dashboard
 
-**Dashboard tab**
-- Totals for today, the last 7 days, the last 30 days and all time
-- A chart of tokens per day for the last 14 days, coloured by engine (Opus, Sonnet, Haiku, GPT, Gemini, Llama…)
-- Tables **by AI tool**, **by engine (model)**, **by app** and **by project**
+`ai-tokens-gui` (or the installed **AI Token Tracker** app) opens a dashboard in its own window.
+It uses the Edge WebView2 window built into Windows 10/11 and a WebKit window on macOS. Anywhere else it opens in your browser.
 
-**Sessions tab**
-- A card with the latest session's totals (click any session to show that one instead)
-- Every session from every AI in one list. Click ▸ to expand a session into its prompts, and a prompt into its individual API calls
-- A filter box: type `codex`, `gemini`, a model name or a project
+**Overview**
+- Period switcher (Today, 7, 30 and 90 days, All time) and on/off chips for each AI tool
+- The token total for the period, its **estimated cost**, and the change versus the previous period
+- A share bar showing each AI tool's portion, with its tokens, cost and sessions
+- Tiles for sessions, prompts, API calls, output, cache reads, active days and your **daily streak**
+- A usage chart by day (or by hour or week), split by AI tool or by model, showing tokens or cost, with hover details
+- "When you work": tokens by hour of day
+- A 12-month **activity heatmap**
+- Top models with their share and cost
+- Tables by day, project, model, AI tool or app, sortable, with **CSV export**
 
-The app refreshes itself every 60 seconds.
+**Sessions**: search across prompts, projects and models, and sort by newest, most tokens or highest cost.
+Click a session to see each prompt, and a prompt to see every API call.
+
+**Sources**: shows which AI tools were found and where. It also shows where the price list came from, with an *Update prices online* button.
+
+It has light and dark themes (following your system, or switched by hand), works on narrow windows, and refreshes itself every minute.
+
+## Cost estimates
+
+Every API call gets an estimated cost at pay-as-you-go **API list prices**, including cache-read and cache-write prices.
+Claude's 1-hour cache writes cost more, and the tracker prices them separately.
+- A price list for about 300 models is bundled, so costs work offline.
+- `ai-tokens --update-prices` (or the button on the Sources page) downloads the latest public price list from
+  [LiteLLM](https://github.com/BerriAI/litellm). This is the only network request the tracker ever makes, and only when you ask for it.
+- You can set your own prices in `~/.ai-token-tracker/prices.json` (USD per 1M tokens):
+  `{"my-model": {"input": 1.0, "output": 4.0, "cache_read": 0.1, "cache_write": 1.25}}`
+- Models without a known price are counted as tokens and flagged as unpriced, never guessed.
+
+If you're on a subscription (Claude Max, ChatGPT Pro…), you aren't billed per token. The figure then shows what the same usage would cost on the API.
 
 ## Install
 
@@ -71,8 +93,8 @@ On macOS the app is unsigned, so the first time you open it, right-click it and 
 
 ### Any computer with Python 3.9+ (pip)
 ```bash
-pip install ai_token_tracker-1.1.0-py3-none-any.whl   # or: pip install .
-ai-tokens-gui     # opens the app
+pip install "ai_token_tracker-2.0.0-py3-none-any.whl[app]"   # [app] adds the native window; leave it off to use your browser
+ai-tokens-gui     # opens the dashboard
 ai-tokens         # command-line version
 pip uninstall ai-token-tracker
 ```
@@ -86,7 +108,9 @@ ai-tokens --all               # every session
 ai-tokens -t codex            # only one AI tool
 ai-tokens -s latest --calls   # one session: per prompt, plus every API call
 ai-tokens --json              # JSON for your own scripts
-ai-tokens --html report.html  # static HTML report
+ai-tokens --serve             # dashboard in your browser (add --port 7690 --no-open for a fixed address)
+ai-tokens --sources           # which AI tools were found, and where
+ai-tokens --update-prices     # refresh the price list used for cost estimates
 ```
 
 Other options: `-n 20` (how many recent sessions), `-p myproject` (one project only), `--dir PATH` (another Claude Code `projects` folder).
@@ -106,11 +130,24 @@ The tracker converts everything to the four columns above, so numbers from diffe
 Cache reads are usually the largest number because the whole conversation is re-read on every call.
 They are also the cheapest kind of token, so for cost, **Output** and **Input + Cache write** tell you more.
 
+## Privacy and security
+
+- The tracker only **reads** log files. It never changes them, and it has no account, telemetry or cloud sync.
+- The dashboard is served on `127.0.0.1` only. Each launch gets a random access token, and requests from other websites are refused.
+- Prompt text appears only in your own dashboard, clipped to a short preview.
+
 ## Development
 
 ```bash
 python -m unittest discover -s tests   # reader tests for every AI tool
 ```
 
-To build the apps, open **Actions → Build apps → Run workflow** in GitHub, or push a tag such as `v1.1.0` to publish a Release.
+## Credits
+
+- Interface ideas came from studying [TokenTracker](https://github.com/xiufengsun/TokenTracker) (MIT):
+  a period switcher with a big total, a share bar, a heatmap and trend charts, and a bundled price list that can be updated.
+  No code or assets were copied. Everything here was written from scratch.
+- Model prices come from [LiteLLM](https://github.com/BerriAI/litellm)'s public price list (MIT).
+
+To build the apps, open **Actions → Build apps → Run workflow** in GitHub, or push a tag such as `v2.0.0` to publish a Release.
 That builds the Windows installer and portable `.exe`, the macOS app, the Linux binary and the Python wheel.

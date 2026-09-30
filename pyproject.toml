@@ -11,11 +11,18 @@ requires-python = ">=3.9"
 dependencies = []
 license = { text = "MIT" }
 
+[project.optional-dependencies]
+# Native app window instead of a browser tab (Edge WebView2 on Windows, WebKit on macOS).
+app = ["pywebview>=5"]
+
 [project.scripts]
 ai-tokens = "ai_token_tracker.cli:main"
 
 [project.gui-scripts]
 ai-tokens-gui = "ai_token_tracker.gui:main"
+
+[tool.setuptools.package-data]
+ai_token_tracker = ["web/*", "data/*.json"]
 
 [tool.setuptools.dynamic]
 version = { attr = "ai_token_tracker.__version__" }

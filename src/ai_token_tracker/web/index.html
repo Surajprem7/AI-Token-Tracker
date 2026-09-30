@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Token Tracker</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232a78d6'/%3E%3Cpath d='M8 22V14M14 22V9M20 22v-6M26 22V12' stroke='white' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" class="brand-bg"/><path d="M8 22V14M14 22V9M20 22v-6M26 22V12" stroke="#fff" stroke-width="3" stroke-linecap="round"/></svg>
+    <span>AI Token Tracker</span>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Pages">
+    <button role="tab" data-page="overview" aria-selected="true">Overview</button>
+    <button role="tab" data-page="sessions" aria-selected="false">Sessions</button>
+    <button role="tab" data-page="sources" aria-selected="false">Sources</button>
+  </nav>
+  <div class="top-actions">
+    <span class="updated" id="updated"></span>
+    <button class="icon-btn" id="refresh" title="Refresh now" aria-label="Refresh now">
+      <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button class="icon-btn" id="theme" title="Theme: automatic" aria-label="Change theme">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 4a8 8 0 0 1 0 16z" fill="currentColor"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="filters">
+  <div class="segmented" id="period" role="radiogroup" aria-label="Period">
+    <button data-period="today" role="radio">Today</button>
+    <button data-period="7" role="radio">7 days</button>
+    <button data-period="30" role="radio">30 days</button>
+    <button data-period="90" role="radio">90 days</button>
+    <button data-period="all" role="radio">All time</button>
+  </div>
+  <div class="chips" id="toolChips" aria-label="AI tools"></div>
+</div>
+
+<main>
+  <section id="page-overview" class="page">
+    <div class="grid">
+      <article class="card hero">
+        <div class="card-label" id="heroLabel">Tokens</div>
+        <div class="hero-number" id="heroTotal">–</div>
+        <div class="hero-sub">
+          <span class="cost" id="heroCost"></span>
+          <span class="delta" id="heroDelta"></span>
+        </div>
+        <div class="share-bar" id="shareBar" aria-hidden="true"></div>
+        <ul class="share-list" id="shareList"></ul>
+        <p class="note" id="unpricedNote"></p>
+      </article>
+
+      <article class="card kpis" id="kpis"></article>
+
+      <article class="card span-8">
+        <div class="card-head">
+          <h2 id="trendTitle">Usage over time</h2>
+          <div class="head-controls">
+            <div class="segmented small" id="trendGroup">
+              <button data-v="tool" aria-pressed="true">By AI</button>
+              <button data-v="model" aria-pressed="false">By model</button>
+            </div>
+            <div class="segmented small" id="trendMetric">
+              <button data-v="tokens" aria-pressed="true">Tokens</button>
+              <button data-v="cost" aria-pressed="false">Cost</button>
+            </div>
+          </div>
+        </div>
+        <div class="chart" id="trend"></div>
+        <div class="legend" id="trendLegend"></div>
+      </article>
+
+      <article class="card span-4">
+        <div class="card-head"><h2>When you work</h2><span class="muted small">tokens by hour of day</span></div>
+        <div class="chart" id="hours"></div>
+      </article>
+
+      <article class="card span-8">
+        <div class="card-head"><h2>Activity</h2><span class="muted small">past 12 months · all selected AIs</span></div>
+        <div class="heatmap" id="heatmap"></div>
+      </article>
+
+      <article class="card span-4">
+        <div class="card-head"><h2>Top models</h2><span class="muted small" id="topModelsNote"></span></div>
+        <ol class="ranked" id="topModels"></ol>
+      </article>
+
+      <article class="card span-12">
+        <div class="card-head">
+          <div class="segmented small" id="breakdownTab">
+            <button data-v="day" aria-pressed="true">Daily</button>
+            <button data-v="project" aria-pressed="false">Projects</button>
+            <button data-v="model" aria-pressed="false">Models</button>
+            <button data-v="tool" aria-pressed="false">AI tools</button>
+            <button data-v="app" aria-pressed="false">Apps</button>
+          </div>
+          <button class="text-btn" id="exportCsv">Export CSV</button>
+        </div>
+        <div class="table-wrap"><table class="data" id="breakdown"></table></div>
+      </article>
+    </div>
+  </section>
+
+  <section id="page-sessions" class="page" hidden>
+    <div class="toolbar">
+      <input type="search" id="sessionSearch" placeholder="Search prompts, projects, models…" aria-label="Search sessions">
+      <select id="sessionSort" aria-label="Sort sessions">
+        <option value="recent">Newest first</option>
+        <option value="tokens">Most tokens</option>
+        <option value="cost">Highest cost</option>
+      </select>
+    </div>
+    <p class="muted small" id="sessionCount"></p>
+    <div class="session-list" id="sessionList"></div>
+    <button class="more-btn" id="moreSessions" hidden>Show more</button>
+  </section>
+
+  <section id="page-sources" class="page" hidden>
+    <div class="grid">
+      <article class="card span-7">
+        <div class="card-head"><h2>AI tools on this computer</h2></div>
+        <div id="sourceList"></div>
+      </article>
+      <article class="card span-5">
+        <div class="card-head"><h2>Cost estimates</h2></div>
+        <div id="pricingInfo"></div>
+        <button class="btn" id="updatePrices">Update prices online</button>
+        <p class="note" id="pricesMsg">Downloads LiteLLM's public price list. Nothing about your usage is sent.</p>
+      </article>
+      <article class="card span-7">
+        <div class="card-head"><h2>Track any other AI</h2></div>
+        <p>Log usage from any AI tool or script. It shows up here like the built-in tools.</p>
+        <pre><code>ai-tokens --add ChatGPT gpt-5 1200 350 --prompt "draft email"</code></pre>
+        <pre><code>from ai_token_tracker import log_usage
+log_usage("My app", r.model, r.usage.input_tokens, r.usage.output_tokens)</code></pre>
+        <p class="muted small">Or drop a CSV with <code>timestamp, tool, model, input_tokens, output_tokens</code> into the custom log folder listed on the left.</p>
+      </article>
+      <article class="card span-5">
+        <div class="card-head"><h2>Privacy</h2></div>
+        <p>Everything stays on this computer. The tracker only reads the log files your AI tools already write, and this page is served from your own machine.</p>
+        <p class="muted small">The only network request it can make is the price update above, and only when you click it.</p>
+      </article>
+    </div>
+  </section>
+</main>
+
+<div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

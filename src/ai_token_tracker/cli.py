@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import html
 import json
 import os
 import sys
@@ -14,7 +13,8 @@ from .core import (
     BY_APP, BY_MODEL, BY_PROJECT, BY_TOOL, Session, Usage, breakdown, clip, duration, fmt,
     load_sessions, local, short,
 )
-from .sources import custom_dir, log_usage
+from .pricing import pricing_info
+from .sources import custom_dir, log_usage, source_status
 
 # --------------------------------------------------------------------------- #
 # Terminal output
@@ -33,6 +33,12 @@ def bold(t: str) -> str:
 
 def dim(t: str) -> str:
     return c(t, "2")
+
+
+def money(v: float) -> str:
+    if not v:
+        return "$0"
+    return "<$0.01" if v < 0.01 else f"${v:,.2f}"
 
 
 def table(headers: list[str], rows: list[list[str]], right: set[int]) -> str:
@@ -60,6 +66,7 @@ def usage_block(u: Usage) -> str:
     ]
     lines = [f"  {name:<12}{fmt(v):>14}   {dim(note)}" for name, v, note in rows]
     lines.append(f"  {bold('Total'.ljust(12))}{bold(fmt(u.total).rjust(14))}")
+    lines.append(f"  {'Est. cost'.ljust(12)}{money(u.cost).rjust(14)}   {dim('at API list prices' + (f'; {fmt(u.unpriced)} tokens have no known price' if u.unpriced else ''))}")
     return "\n".join(lines)
 
 
@@ -78,12 +85,12 @@ def session_rows(sessions: list[Session], title_width: int = 48) -> str:
         u = s.usage
         rows.append([
             str(i), clip(s.tool, 14), s.session_id[:8], local(s.start), clip(s.project, 20), str(len(s.calls)),
-            short(u.input + u.cache_write), short(u.cache_read), short(u.output), short(u.total),
+            short(u.input + u.cache_write), short(u.cache_read), short(u.output), short(u.total), money(u.cost),
             clip(s.title, title_width),
         ])
     return table(
-        ["#", "AI", "ID", "Started", "Project", "Calls", "In+Write", "CacheRead", "Output", "Total", "First prompt"],
-        rows, right={0, 5, 6, 7, 8, 9},
+        ["#", "AI", "ID", "Started", "Project", "Calls", "In+Write", "CacheRead", "Output", "Total", "Cost", "First prompt"],
+        rows, right={0, 5, 6, 7, 8, 9, 10},
     )
 
 
@@ -102,7 +109,7 @@ def print_overview(sessions: list[Session], recent: int) -> None:
     print()
     print(f"All {len(sessions)} sessions: {bold(fmt(grand.total))} tokens "
           f"({fmt(grand.output)} output)")
-    print(dim("More: --all  |  -s <id> for a session's per-prompt breakdown  |  --html report.html"))
+    print(dim("More: --all  |  -s <id> for a session's per-prompt breakdown  |  --stats  |  ai-tokens-gui for the dashboard"))
 
 
 def print_all(sessions: list[Session]) -> None:
@@ -159,10 +166,10 @@ def print_stats(sessions: list[Session]) -> None:
             share = u.total / grand.total * 100 if grand.total else 0
             rows.append([clip(name, 32), str(len(g.session_ids)), str(g.calls),
                          short(u.input + u.cache_write), short(u.cache_read), short(u.output),
-                         fmt(u.total), f"{share:.1f}%"])
+                         fmt(u.total), money(u.cost), f"{share:.1f}%"])
         print(bold(title))
-        print(table(["Name", "Sessions", "Calls", "In+Write", "CacheRead", "Output", "Total", "Share"],
-                    rows, right={1, 2, 3, 4, 5, 6, 7}))
+        print(table(["Name", "Sessions", "Calls", "In+Write", "CacheRead", "Output", "Total", "Est. cost", "Share"],
+                    rows, right={1, 2, 3, 4, 5, 6, 7, 8}))
         print()
 
 
@@ -173,132 +180,6 @@ def find_session(sessions: list[Session], ref: str) -> Session | None:
         return sessions[int(ref) - 1]
     matches = [s for s in sessions if s.session_id.startswith(ref)]
     return matches[0] if len(matches) == 1 else None
-
-
-# --------------------------------------------------------------------------- #
-# HTML report
-# --------------------------------------------------------------------------- #
-
-HTML_TEMPLATE = """<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AI Token Usage</title>
-<style>
-:root {{
-  --bg: #f7f7f5; --card: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #e4e3de;
-  --accent: #c2410c; --bar-in: #2563eb; --bar-cw: #7c3aed; --bar-cr: #94a3b8; --bar-out: #c2410c;
-}}
-@media (prefers-color-scheme: dark) {{
-  :root {{
-    --bg: #161614; --card: #1f1f1c; --text: #ecebe6; --muted: #9a998f; --line: #34332f;
-    --accent: #fb923c; --bar-in: #60a5fa; --bar-cw: #a78bfa; --bar-cr: #64748b; --bar-out: #fb923c;
-  }}
-}}
-* {{ box-sizing: border-box; }}
-body {{ margin: 0; background: var(--bg); color: var(--text);
-  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }}
-main {{ max-width: 1100px; margin: 0 auto; padding: 24px 16px 64px; }}
-h1 {{ font-size: 22px; margin: 0 0 4px; }}
-.sub {{ color: var(--muted); margin-bottom: 20px; }}
-.tiles {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 24px; }}
-.tile {{ background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }}
-.tile .k {{ color: var(--muted); font-size: 12px; }}
-.tile .v {{ font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }}
-details {{ background: var(--card); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 8px; }}
-details[open] {{ border-color: var(--accent); }}
-summary {{ cursor: pointer; list-style: none; padding: 12px 14px; display: grid;
-  grid-template-columns: 1fr auto; gap: 4px 16px; align-items: center; }}
-summary::-webkit-details-marker {{ display: none; }}
-summary .title {{ font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
-summary .title::before {{ content: "▸ "; color: var(--muted); }}
-details[open] summary .title::before {{ content: "▾ "; }}
-summary .total {{ font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }}
-summary .meta {{ color: var(--muted); font-size: 12px; }}
-.bar {{ display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--line); grid-column: 1 / -1; }}
-.bar span {{ display: block; height: 100%; }}
-.in {{ background: var(--bar-in); }} .cw {{ background: var(--bar-cw); }}
-.cr {{ background: var(--bar-cr); }} .out {{ background: var(--bar-out); }}
-.body {{ padding: 0 14px 14px; overflow-x: auto; }}
-table {{ width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }}
-th, td {{ padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }}
-th {{ color: var(--muted); font-weight: 500; font-size: 12px; }}
-td.p, th.p {{ text-align: left; white-space: normal; min-width: 240px; }}
-tr.sub td {{ color: var(--muted); }}
-.legend {{ display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin: -8px 0 16px; }}
-.legend i {{ display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }}
-</style>
-</head>
-<body>
-<main>
-<h1>AI token usage</h1>
-<div class="sub">{count} sessions · generated {generated} · click a session to expand it</div>
-<div class="tiles">{tiles}</div>
-<div class="legend"><span><i class="in"></i>Input</span><span><i class="cw"></i>Cache write</span>
-<span><i class="cr"></i>Cache read</span><span><i class="out"></i>Output</span></div>
-{sessions}
-</main>
-</body>
-</html>
-"""
-
-
-def bar(u: Usage) -> str:
-    total = u.total or 1
-    parts = [("in", u.input), ("cw", u.cache_write), ("cr", u.cache_read), ("out", u.output)]
-    return '<div class="bar">' + "".join(
-        f'<span class="{cls}" style="width:{v / total * 100:.2f}%"></span>' for cls, v in parts if v
-    ) + "</div>"
-
-
-def render_html(sessions: list[Session]) -> str:
-    esc = html.escape
-    grand = Usage()
-    for s in sessions:
-        grand.add(s.usage)
-    tiles = "".join(
-        f'<div class="tile"><div class="k">{k}</div><div class="v">{v}</div></div>'
-        for k, v in [
-            ("Total tokens", fmt(grand.total)), ("Output", fmt(grand.output)),
-            ("Input + cache write", fmt(grand.input + grand.cache_write)),
-            ("Cache read", fmt(grand.cache_read)), ("Sessions", str(len(sessions))),
-        ]
-    )
-    blocks = []
-    for idx, s in enumerate(sessions):
-        u = s.usage
-        rows = []
-        for i, t in enumerate(s.turns, 1):
-            tu = t.usage
-            cls = ' class="sub"' if t.prompt.startswith("[sub-agent]") else ""
-            rows.append(
-                f"<tr{cls}><td>{i}</td><td>{esc(local(t.timestamp, with_date=False))}</td>"
-                f"<td>{len(t.calls)}</td><td>{fmt(tu.input)}</td><td>{fmt(tu.cache_write)}</td>"
-                f"<td>{fmt(tu.cache_read)}</td><td>{fmt(tu.output)}</td><td><b>{fmt(tu.total)}</b></td>"
-                f'<td class="p">{esc(clip(t.prompt or "(before first prompt)", 300))}</td></tr>'
-            )
-        meta = " · ".join(filter(None, [
-            s.project, s.branch, f"{local(s.start)} ({duration(s)})", ", ".join(s.models),
-            f"{len(s.calls)} API calls", s.session_id,
-        ]))
-        blocks.append(
-            f'<details{" open" if idx == 0 else ""}><summary>'
-            f'<span class="title">{esc(clip(s.title, 140))}</span>'
-            f'<span class="total">{fmt(u.total)}</span>'
-            f'<span class="meta">{esc(meta)}</span>'
-            f'<span class="meta" style="text-align:right">out {fmt(u.output)}</span>'
-            f"{bar(u)}</summary><div class=\"body\"><table><thead><tr>"
-            f"<th>#</th><th>Time</th><th>Calls</th><th>Input</th><th>Cache write</th>"
-            f'<th>Cache read</th><th>Output</th><th>Total</th><th class="p">Prompt</th>'
-            f"</tr></thead><tbody>{''.join(rows)}</tbody></table></div></details>"
-        )
-    return HTML_TEMPLATE.format(
-        count=len(sessions),
-        generated=esc(datetime.now().strftime("%Y-%m-%d %H:%M")),
-        tiles=tiles,
-        sessions="\n".join(blocks),
-    )
 
 
 # --------------------------------------------------------------------------- #
@@ -333,8 +214,40 @@ def _main(argv: list[str] | None = None) -> int:
     ap.add_argument("--prompt", default="", help="with --add: what the request was about")
     ap.add_argument("--stats", action="store_true", help="totals per AI tool, engine (model), app and project")
     ap.add_argument("--json", action="store_true", help="print JSON instead of tables")
-    ap.add_argument("--html", metavar="FILE", type=Path, help="write an expandable HTML report")
+    ap.add_argument("--serve", action="store_true", help="run the dashboard in your browser (no app window)")
+    ap.add_argument("--port", type=int, default=0, help="with --serve: port to use (default: any free port)")
+    ap.add_argument("--no-open", action="store_true", help="with --serve: don't open the browser")
+    ap.add_argument("--sources", action="store_true", help="show which AI tools were found and where")
+    ap.add_argument("--update-prices", action="store_true",
+                    help="download the latest model prices (LiteLLM's public list) for cost estimates")
     args = ap.parse_args(argv)
+
+    if args.update_prices:
+        from .pricing import update_prices
+        try:
+            n = update_prices()
+        except Exception as exc:
+            print(f"Could not update prices: {exc}", file=sys.stderr)
+            return 1
+        print(f"Updated prices for {n:,} models.")
+        return 0
+
+    if args.sources:
+        for row in source_status([d.expanduser() for d in args.dir] if args.dir else None):
+            state = f"{row['files']:,} files" if row["found"] else "not found"
+            print(f"{bold(row['tool']):<24} {state}")
+            for p in row["paths"]:
+                print(f"    {dim(p)}")
+        info = pricing_info()
+        print(f"{bold('Prices'):<24} {info['models']:,} models ({info['source']}, {info['updated']}), "
+              f"{info['overrides']} of your own")
+        return 0
+
+    if args.serve:
+        from .gui import serve_in_browser
+        from .server import start
+        httpd, app, url = start(args.port, [d.expanduser() for d in args.dir] if args.dir else None)
+        return serve_in_browser(httpd, app, url, open_browser=not args.no_open, idle_exit=False)
 
     if args.add:
         tool, model, inp, out = args.add
@@ -354,10 +267,6 @@ def _main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 1
 
-    if args.html:
-        args.html.write_text(render_html(sessions), encoding="utf-8")
-        print(f"Wrote {args.html} ({len(sessions)} sessions)")
-        return 0
 
     if args.session:
         s = find_session(sessions, args.session)
