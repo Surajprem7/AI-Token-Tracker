@@ -1,4 +1,4 @@
-"""Desktop window: `claude-tokens-gui` (or the ClaudeTokenTracker app).
+"""Desktop window: `ai-tokens-gui` (or the AITokenTracker app).
 
 The top card shows the latest (or selected) session. The list below has one
 row per session; click the arrow to expand a session into its prompts, and a
@@ -19,8 +19,9 @@ from .core import Session, Usage, clip, default_roots, duration, fmt, load_sessi
 
 AUTO_REFRESH_MS = 60_000
 COLUMNS = (
-    ("started", "Started", 125, "w"),
-    ("project", "Project", 120, "w"),
+    ("started", "Started", 115, "w"),
+    ("tool", "AI", 110, "w"),
+    ("project", "Project", 100, "w"),
     ("calls", "Calls", 50, "e"),
     ("in_write", "In + write", 90, "e"),
     ("cache_read", "Cache read", 100, "e"),
@@ -33,13 +34,13 @@ class App(ttk.Frame):
     def __init__(self, root: tk.Tk):
         super().__init__(root, padding=12)
         self.root = root
-        self.roots: list[Path] = default_roots()
+        self.roots: list[Path] | None = None  # None = default Claude Code folder
         self.sessions: list[Session] = []
         self.node_map: dict[str, object] = {}  # tree item id -> Session / Turn
         self.loading = False
 
-        root.title("Claude Token Tracker")
-        root.geometry("1100x720")
+        root.title("AI Token Tracker")
+        root.geometry("1120x760")
         root.minsize(760, 420)
         self.grid(sticky="nsew")
         root.columnconfigure(0, weight=1)
@@ -110,7 +111,7 @@ class App(ttk.Frame):
         ttk.Label(bar, text="filter", style="Muted.TLabel").grid(row=0, column=2, padx=(6, 12))
         ttk.Button(bar, text="Expand all", command=lambda: self._set_open(True)).grid(row=0, column=3)
         ttk.Button(bar, text="Collapse all", command=lambda: self._set_open(False)).grid(row=0, column=4, padx=4)
-        ttk.Button(bar, text="Folder…", command=self._choose_folder).grid(row=0, column=5)
+        ttk.Button(bar, text="Claude folder…", command=self._choose_folder).grid(row=0, column=5)
         ttk.Button(bar, text="Refresh", command=self.refresh).grid(row=0, column=6, padx=(4, 0))
 
     def _build_tree(self) -> None:
@@ -152,7 +153,7 @@ class App(ttk.Frame):
 
         def work():
             try:
-                result = load_sessions(self.roots) if self.roots else []
+                result = load_sessions(self.roots)
                 error = None
             except Exception as exc:  # show it instead of dying silently
                 result, error = [], exc
@@ -169,9 +170,9 @@ class App(ttk.Frame):
             self._show_card(sessions[0], latest=True)
         else:
             self.card.configure(text=" No sessions found ")
-            self.card_title.configure(text="No Claude Code sessions with token usage were found.")
-            where = ", ".join(map(str, self.roots)) or "~/.claude/projects (missing)"
-            self.card_meta.configure(text=f"Looked in: {where}.  Use “Folder…” to pick another location.")
+            self.card_title.configure(text="No AI sessions with token usage were found.")
+            self.card_meta.configure(text="Looked for Claude Code, Codex CLI, Gemini CLI and the custom log "
+                                          "(~/.ai-token-tracker/usage).  “Claude folder…” picks another Claude location.")
         grand = Usage()
         for s in sessions:
             grand.add(s.usage)
@@ -186,7 +187,8 @@ class App(ttk.Frame):
         self.after(AUTO_REFRESH_MS, self._auto_refresh)
 
     def _choose_folder(self) -> None:
-        start = str(self.roots[0]) if self.roots else str(Path.home())
+        roots = self.roots or default_roots()
+        start = str(roots[0]) if roots else str(Path.home())
         chosen = filedialog.askdirectory(title="Pick the Claude 'projects' folder", initialdir=start)
         if chosen:
             self.roots = [Path(chosen)]
@@ -195,28 +197,30 @@ class App(ttk.Frame):
     # ---- tree ------------------------------------------------------------ #
 
     def _fill_tree(self) -> None:
-        open_ids = {self.node_map[i].session_id for i in self.tree.get_children()
+        open_ids = {(self.node_map[i].tool, self.node_map[i].session_id) for i in self.tree.get_children()
                     if self.tree.item(i, "open") and isinstance(self.node_map.get(i), Session)}
         selected = self.tree.selection()
-        selected_id = getattr(self.node_map.get(selected[0]), "session_id", None) if selected else None
+        node = self.node_map.get(selected[0]) if selected else None
+        selected_id = (node.tool, node.session_id) if isinstance(node, Session) else None
 
         self.tree.delete(*self.tree.get_children())
         self.node_map.clear()
         needle = self.search.get().strip().lower()
         for s in self.sessions:
-            if needle and needle not in f"{s.title} {s.project} {s.session_id} {s.branch}".lower():
+            if needle and needle not in f"{s.title} {s.tool} {s.project} {s.session_id} {s.branch} {' '.join(s.models)}".lower():
                 continue
             u = s.usage
             iid = self.tree.insert("", "end", text=clip(s.title, 90), tags=("session",), values=(
-                s.start.astimezone().strftime("%d %b %H:%M") if s.start else "-", clip(s.project, 22), len(s.calls),
+                s.start.astimezone().strftime("%d %b %H:%M") if s.start else "-", clip(s.tool, 16),
+                clip(s.project, 20), len(s.calls),
                 short(u.input + u.cache_write), short(u.cache_read), short(u.output), fmt(u.total),
             ))
             self.node_map[iid] = s
             self.tree.insert(iid, "end", text="…")  # placeholder so the arrow shows
-            if s.session_id in open_ids:
+            if (s.tool, s.session_id) in open_ids:
                 self.tree.item(iid, open=True)
                 self._expand(iid)
-            if s.session_id == selected_id:
+            if (s.tool, s.session_id) == selected_id:
                 self.tree.selection_set(iid)
 
     def _expand(self, iid: str) -> None:
@@ -231,7 +235,7 @@ class App(ttk.Frame):
                 sub = t.prompt.startswith("[sub-agent]")
                 label = f"{n}. {clip(t.prompt or '(before first prompt)', 120)}"
                 tid = self.tree.insert(iid, "end", text=label, tags=("sub",) if sub else (), values=(
-                    local(t.timestamp, with_date=False), "", len(t.calls),
+                    local(t.timestamp, with_date=False), "", "", len(t.calls),
                     fmt(u.input + u.cache_write), fmt(u.cache_read), fmt(u.output), fmt(u.total),
                 ))
                 self.node_map[tid] = t
@@ -242,7 +246,7 @@ class App(ttk.Frame):
                 u = call.usage
                 self.tree.insert(iid, "end", text=f"call {n} · {call.model}" + (" (sub-agent)" if call.subagent else ""),
                                  tags=("sub",), values=(
-                    local(call.timestamp, with_date=False), "", "",
+                    local(call.timestamp, with_date=False), "", "", "",
                     fmt(u.input + u.cache_write), fmt(u.cache_read), fmt(u.output), fmt(u.total),
                 ))
 
@@ -269,7 +273,7 @@ class App(ttk.Frame):
     def _show_card(self, s: Session, latest: bool) -> None:
         self.card.configure(text=" Latest session " if latest else " Selected session ")
         self.card_title.configure(text=clip(s.title, 100))
-        parts = [s.project, s.branch, f"{local(s.start)} ({duration(s)})",
+        parts = [s.tool, s.project, s.branch, f"{local(s.start)} ({duration(s)})",
                  ", ".join(s.models), f"{len(s.calls)} API calls", s.session_id]
         self.card_meta.configure(text="  ·  ".join(p for p in parts if p))
         u = s.usage

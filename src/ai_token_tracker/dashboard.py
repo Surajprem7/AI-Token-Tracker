@@ -6,7 +6,7 @@ import tkinter as tk
 from datetime import datetime, timedelta
 from tkinter import ttk
 
-from .core import BY_APP, BY_MODEL, BY_PROJECT, Session, Usage, breakdown, by_day, clip, fmt, short
+from .core import BY_APP, BY_MODEL, BY_PROJECT, BY_TOOL, Session, Usage, breakdown, by_day, clip, fmt, short
 
 CHART_DAYS = 14
 FAMILY_COLORS = {
@@ -14,6 +14,13 @@ FAMILY_COLORS = {
     "Sonnet": "#2563eb",
     "Haiku": "#16a34a",
     "Fable": "#7c3aed",
+    "GPT": "#0f766e",
+    "Gemini": "#db2777",
+    "Llama": "#ca8a04",
+    "Qwen": "#9333ea",
+    "Mistral": "#ea580c",
+    "Deepseek": "#1e40af",
+    "Grok": "#334155",
 }
 OTHER_COLOR = "#94a3b8"
 
@@ -21,13 +28,13 @@ OTHER_COLOR = "#94a3b8"
 class Dashboard(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent, padding=(0, 10, 0, 0))
-        self.columnconfigure((0, 1, 2), weight=1, uniform="col")
-        self.rowconfigure(2, weight=1)
+        self.columnconfigure((0, 1), weight=1, uniform="col")
+        self.rowconfigure((2, 3), weight=1)
         self.days: dict[str, dict[str, Usage]] = {}
 
         # Tiles: today / 7 days / 30 days / all time
         tiles = ttk.Frame(self)
-        tiles.grid(row=0, column=0, columnspan=3, sticky="ew")
+        tiles.grid(row=0, column=0, columnspan=2, sticky="ew")
         self.tiles: dict[str, tuple[ttk.Label, ttk.Label]] = {}
         for i, name in enumerate(("Today", "Last 7 days", "Last 30 days", "All time")):
             tiles.columnconfigure(i, weight=1, uniform="tile")
@@ -41,27 +48,31 @@ class Dashboard(ttk.Frame):
 
         # Daily chart, stacked by model family
         chart_box = ttk.LabelFrame(self, text=f" Tokens per day, last {CHART_DAYS} days (by engine) ", padding=6)
-        chart_box.grid(row=1, column=0, columnspan=3, sticky="ew", pady=10)
+        chart_box.grid(row=1, column=0, columnspan=2, sticky="ew", pady=10)
         chart_box.columnconfigure(0, weight=1)
-        self.canvas = tk.Canvas(chart_box, height=190, highlightthickness=0, background="white")
+        self.canvas = tk.Canvas(chart_box, height=150, highlightthickness=0, background="white")
         self.canvas.grid(row=0, column=0, sticky="ew")
         self.canvas.bind("<Configure>", lambda _e: self._draw_chart())
 
         # Breakdown tables
         self.tables: dict[str, ttk.Treeview] = {}
-        for col, (title, label) in enumerate((("Engine (model)", "engine (model)"),
-                                              ("AI app", "AI app"), ("Project", "project"))):
+        for n, (title, label) in enumerate((("AI tool", "AI tool"), ("Engine (model)", "engine (model)"),
+                                            ("App", "app"), ("Project", "project"))):
+            row, col = 2 + n // 2, n % 2
             box = ttk.LabelFrame(self, text=f" By {label} ", padding=4)
-            box.grid(row=2, column=col, sticky="nsew", padx=(0 if col == 0 else 8, 0))
+            box.grid(row=row, column=col, sticky="nsew", padx=(0 if col == 0 else 8, 0), pady=(0, 6))
             box.columnconfigure(0, weight=1)
             box.rowconfigure(0, weight=1)
-            tv = ttk.Treeview(box, columns=("name", "sessions", "total", "share"), show="headings", height=6)
+            tv = ttk.Treeview(box, columns=("name", "sessions", "output", "total", "share"), show="headings", height=4)
             tv.heading("name", text=title, anchor="w")
             tv.column("name", width=150, minwidth=100, stretch=True)
-            for key, head, width in (("sessions", "Sess.", 52), ("total", "Total", 64), ("share", "Share", 60)):
+            for key, head, width in (("sessions", "Sess.", 55), ("output", "Output", 70), ("total", "Total", 75), ("share", "Share", 60)):
                 tv.heading(key, text=head, anchor="e")
                 tv.column(key, width=width, minwidth=40, anchor="e", stretch=False)
+            sb = ttk.Scrollbar(box, orient="vertical", command=tv.yview)
+            tv.configure(yscrollcommand=sb.set)
             tv.grid(row=0, column=0, sticky="nsew")
+            sb.grid(row=0, column=1, sticky="ns")
             self.tables[title] = tv
 
     def update_data(self, sessions: list[Session]) -> None:
@@ -83,12 +94,12 @@ class Dashboard(ttk.Frame):
             small.configure(text=f"output {short(u.output)} · new input {short(u.input + u.cache_write)}")
 
         grand = sum(s.usage.total for s in sessions) or 1
-        for title, key in (("Engine (model)", BY_MODEL), ("AI app", BY_APP), ("Project", BY_PROJECT)):
+        for title, key in (("AI tool", BY_TOOL), ("Engine (model)", BY_MODEL), ("App", BY_APP), ("Project", BY_PROJECT)):
             tv = self.tables[title]
             tv.delete(*tv.get_children())
             for name, g in breakdown(sessions, key).items():
                 tv.insert("", "end", values=(
-                    clip(name, 40), len(g.session_ids), short(g.usage.total),
+                    clip(name, 40), len(g.session_ids), short(g.usage.output), short(g.usage.total),
                     f"{g.usage.total / grand * 100:.1f}%",
                 ))
         self._draw_chart()

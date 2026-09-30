@@ -1,4 +1,4 @@
-"""Command-line interface: `claude-tokens`."""
+"""Command-line interface: `ai-tokens`."""
 
 from __future__ import annotations
 
@@ -11,9 +11,10 @@ from datetime import datetime
 from pathlib import Path
 
 from .core import (
-    BY_APP, BY_MODEL, BY_PROJECT, Session, Usage, breakdown, clip, default_roots, duration, fmt,
+    BY_APP, BY_MODEL, BY_PROJECT, BY_TOOL, Session, Usage, breakdown, clip, duration, fmt,
     load_sessions, local, short,
 )
+from .sources import custom_dir, log_usage
 
 # --------------------------------------------------------------------------- #
 # Terminal output
@@ -53,7 +54,7 @@ def table(headers: list[str], rows: list[list[str]], right: set[int]) -> str:
 def usage_block(u: Usage) -> str:
     rows = [
         ("Input", u.input, "fresh prompt tokens"),
-        ("Output", u.output, "tokens Claude wrote (incl. thinking)"),
+        ("Output", u.output, "tokens the AI wrote (incl. thinking)"),
         ("Cache write", u.cache_write, "context stored in the prompt cache"),
         ("Cache read", u.cache_read, "context re-read from cache (cheap)"),
     ]
@@ -64,7 +65,7 @@ def usage_block(u: Usage) -> str:
 
 def session_header(s: Session) -> str:
     return "\n".join([
-        f"{bold('Session')} {s.session_id}   {dim(s.project)}" + (dim(f" @ {s.branch}") if s.branch else ""),
+        f"{bold(s.tool)}  {s.session_id}   {dim(s.project)}" + (dim(f" @ {s.branch}") if s.branch else ""),
         f"  {clip(s.title, 100)}",
         f"  {local(s.start)} → {local(s.end, with_date=False)}  ({duration(s)})   "
         f"models: {', '.join(s.models) or '-'}   API calls: {len(s.calls)}",
@@ -76,13 +77,13 @@ def session_rows(sessions: list[Session], title_width: int = 48) -> str:
     for i, s in enumerate(sessions, 1):
         u = s.usage
         rows.append([
-            str(i), s.session_id[:8], local(s.start), clip(s.project, 20), str(len(s.calls)),
+            str(i), clip(s.tool, 14), s.session_id[:8], local(s.start), clip(s.project, 20), str(len(s.calls)),
             short(u.input + u.cache_write), short(u.cache_read), short(u.output), short(u.total),
             clip(s.title, title_width),
         ])
     return table(
-        ["#", "ID", "Started", "Project", "Calls", "In+Write", "CacheRead", "Output", "Total", "First prompt"],
-        rows, right={0, 4, 5, 6, 7, 8},
+        ["#", "AI", "ID", "Started", "Project", "Calls", "In+Write", "CacheRead", "Output", "Total", "First prompt"],
+        rows, right={0, 5, 6, 7, 8, 9},
     )
 
 
@@ -151,7 +152,7 @@ def print_stats(sessions: list[Session]) -> None:
     grand = Usage()
     for s in sessions:
         grand.add(s.usage)
-    for title, key in (("By engine (model)", BY_MODEL), ("By AI app", BY_APP), ("By project", BY_PROJECT)):
+    for title, key in (("By AI tool", BY_TOOL), ("By engine (model)", BY_MODEL), ("By AI app", BY_APP), ("By project", BY_PROJECT)):
         rows = []
         for name, g in breakdown(sessions, key).items():
             u = g.usage
@@ -183,7 +184,7 @@ HTML_TEMPLATE = """<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Claude Token Usage</title>
+<title>AI Token Usage</title>
 <style>
 :root {{
   --bg: #f7f7f5; --card: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #e4e3de;
@@ -231,7 +232,7 @@ tr.sub td {{ color: var(--muted); }}
 </head>
 <body>
 <main>
-<h1>Claude token usage</h1>
+<h1>AI token usage</h1>
 <div class="sub">{count} sessions · generated {generated} · click a session to expand it</div>
 <div class="tiles">{tiles}</div>
 <div class="legend"><span><i class="in"></i>Input</span><span><i class="cw"></i>Cache write</span>
@@ -314,8 +315,9 @@ def main(argv: list[str] | None = None) -> int:
 
 def _main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
-        prog="claude-tokens",
-        description="Show how many tokens each Claude Code session spent.",
+        prog="ai-tokens",
+        description="Show how many tokens each AI session spent "
+                    "(Claude Code, Codex CLI, Gemini CLI and anything in your custom log).",
     )
     ap.add_argument("-a", "--all", action="store_true", help="list every session")
     ap.add_argument("-s", "--session", metavar="ID",
@@ -324,21 +326,32 @@ def _main(argv: list[str] | None = None) -> int:
     ap.add_argument("-n", "--recent", type=int, default=10, help="sessions in the overview list (default 10)")
     ap.add_argument("-p", "--project", help="only sessions whose project/path contains this text")
     ap.add_argument("--dir", action="append", type=Path,
-                    help="Claude 'projects' directory to scan (default: ~/.claude/projects)")
-    ap.add_argument("--stats", action="store_true", help="totals per engine (model), AI app and project")
+                    help="Claude Code 'projects' directory to scan (default: ~/.claude/projects)")
+    ap.add_argument("-t", "--tool", help="only sessions from this AI tool, e.g. codex, gemini, claude")
+    ap.add_argument("--add", nargs=4, metavar=("TOOL", "MODEL", "INPUT", "OUTPUT"),
+                    help="log usage from any other AI by hand, e.g. --add ChatGPT gpt-5 1200 350")
+    ap.add_argument("--prompt", default="", help="with --add: what the request was about")
+    ap.add_argument("--stats", action="store_true", help="totals per AI tool, engine (model), app and project")
     ap.add_argument("--json", action="store_true", help="print JSON instead of tables")
     ap.add_argument("--html", metavar="FILE", type=Path, help="write an expandable HTML report")
     args = ap.parse_args(argv)
 
-    roots = [d.expanduser() for d in args.dir] if args.dir else default_roots()
-    if not roots:
-        print("No Claude transcripts found (looked in ~/.claude/projects). "
-              "Use --dir to point at a 'projects' folder.", file=sys.stderr)
-        return 1
+    if args.add:
+        tool, model, inp, out = args.add
+        try:
+            path = log_usage(tool, model, int(inp), int(out), prompt=args.prompt)
+        except ValueError:
+            print("INPUT and OUTPUT must be whole numbers of tokens.", file=sys.stderr)
+            return 2
+        print(f"Logged {int(inp) + int(out):,} tokens for {tool} ({model}) in {path}")
+        return 0
 
-    sessions = load_sessions(roots, args.project)
+    roots = [d.expanduser() for d in args.dir] if args.dir else None
+    sessions = load_sessions(roots, args.project, args.tool)
     if not sessions:
-        print("No sessions with token usage found in: " + ", ".join(map(str, roots)), file=sys.stderr)
+        print("No sessions with token usage found. Looked for Claude Code (~/.claude/projects), "
+              f"Codex CLI (~/.codex/sessions), Gemini CLI (~/.gemini/tmp) and {custom_dir()}.",
+              file=sys.stderr)
         return 1
 
     if args.html:

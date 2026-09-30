@@ -1,4 +1,8 @@
-"""Read Claude Code transcripts and add up the tokens each session used.
+"""Shared data model, the Claude Code reader, and grouping/formatting helpers.
+
+The readers for other AI tools live in sources.py. Every reader turns a tool's
+local log files into the same Session -> Turn -> ApiCall structure, so the CLI
+and the app don't care where the numbers came from.
 
 Claude Code writes a transcript for every session to
 ~/.claude/projects/<project>/<session-id>.jsonl. Every assistant message in
@@ -73,6 +77,7 @@ class Session:
     session_id: str
     project: str
     path: Path
+    tool: str = "Claude Code"  # which AI tool the session belongs to
     title: str = ""
     cwd: str = ""
     branch: str = ""
@@ -118,6 +123,7 @@ class Session:
     def to_dict(self, with_turns: bool = True) -> dict:
         d = {
             "session_id": self.session_id,
+            "tool": self.tool,
             "project": self.project,
             "title": self.title,
             "cwd": self.cwd,
@@ -292,6 +298,12 @@ def model_family(model: str) -> str:
     for fam in ("fable", "opus", "sonnet", "haiku"):
         if fam in m:
             return fam.capitalize()
+    if "gemini" in m or "gemma" in m:
+        return "Gemini"
+    if m.startswith(("gpt", "o1", "o3", "o4", "codex", "chatgpt")):
+        return "GPT"
+    if any(k in m for k in ("llama", "qwen", "mistral", "deepseek", "grok")):
+        return next(k for k in ("llama", "qwen", "mistral", "deepseek", "grok") if k in m).capitalize()
     return model or "unknown"
 
 
@@ -312,10 +324,11 @@ def breakdown(sessions: list[Session], key) -> dict[str, Group]:
             g = groups.setdefault(key(s, call), Group())
             g.usage.add(call.usage)
             g.calls += 1
-            g.session_ids.add(s.session_id)
+            g.session_ids.add((s.tool, s.session_id))
     return dict(sorted(groups.items(), key=lambda kv: kv[1].usage.total, reverse=True))
 
 
+BY_TOOL = lambda s, c: s.tool  # noqa: E731
 BY_MODEL = lambda s, c: c.model or "unknown"  # noqa: E731
 BY_APP = lambda s, c: c.app or "unknown"  # noqa: E731
 BY_PROJECT = lambda s, c: s.project  # noqa: E731
@@ -396,7 +409,28 @@ def pretty_project(dirname: str) -> str:
     return parts[-1] if parts else dirname
 
 
-def load_sessions(roots: list[Path], project_filter: str | None = None) -> list[Session]:
+def load_sessions(roots: list[Path] | None = None, project_filter: str | None = None,
+                  tool_filter: str | None = None) -> list[Session]:
+    """Every session from every supported AI tool, newest first.
+
+    `roots` overrides where Claude Code transcripts are read from; the other
+    tools are always read from their default locations.
+    """
+    from .sources import load_other_tools
+
+    sessions = load_claude_sessions(default_roots() if roots is None else roots) + load_other_tools()
+    if project_filter:
+        needle = project_filter.lower()
+        sessions = [s for s in sessions if needle in f"{s.project} {s.cwd} {s.path}".lower()]
+    if tool_filter:
+        needle = tool_filter.lower()
+        sessions = [s for s in sessions if needle in s.tool.lower()]
+    epoch = datetime.min.replace(tzinfo=timezone.utc)
+    sessions.sort(key=lambda s: s.end or epoch, reverse=True)
+    return sessions
+
+
+def load_claude_sessions(roots: list[Path]) -> list[Session]:
     sessions: list[Session] = []
     for root in roots:
         for proj in sorted(p for p in root.iterdir() if p.is_dir()):
@@ -406,12 +440,8 @@ def load_sessions(roots: list[Path], project_filter: str | None = None) -> list[
                     s.project = Path(s.cwd).name or s.project
                 else:
                     s.project = pretty_project(proj.name)
-                if project_filter and project_filter.lower() not in (s.project + " " + proj.name + " " + s.cwd).lower():
-                    continue
                 if s.calls:
                     sessions.append(s)
-    epoch = datetime.min.replace(tzinfo=timezone.utc)
-    sessions.sort(key=lambda s: s.end or epoch, reverse=True)
     return sessions
 
 

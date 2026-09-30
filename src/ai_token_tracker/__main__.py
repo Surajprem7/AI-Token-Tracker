@@ -1,4 +1,4 @@
-"""`python -m claude_token_tracker`: GUI with no arguments, CLI otherwise."""
+"""`python -m ai_token_tracker`: GUI with no arguments, CLI otherwise."""
 
 import sys
 
