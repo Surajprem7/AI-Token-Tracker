@@ -11,8 +11,10 @@ Supported out of the box (all read-only, from files the tools already write):
 from __future__ import annotations
 
 import csv
+import io
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -28,8 +30,9 @@ def load_other_tools() -> list[Session]:
     for loader in loaders:
         try:
             sessions += loader()
-        except (OSError, ValueError, TypeError, KeyError, AttributeError):
-            continue  # unreadable or unexpected data: skip that tool rather than fail
+        except Exception as exc:  # one tool's odd data must never hide all the others
+            print(f"ai-token-tracker: skipped {loader.__name__}: {exc!r}", file=sys.stderr)
+            continue
     return [s for s in sessions if s.calls]
 
 
@@ -39,7 +42,13 @@ def load_other_tools() -> list[Session]:
 
 
 def _int(value) -> int:
-    return value if isinstance(value, int) and value > 0 else 0
+    """A token count from a log: whole and positive, else 0 (bools, NaN, inf and junk count as 0)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return 0
+    try:
+        return int(value) if value > 0 else 0
+    except (OverflowError, ValueError):
+        return 0
 
 
 def _text(content) -> str:
@@ -194,7 +203,7 @@ def _gemini_records(path: Path):
     if path.suffix == ".json":
         try:
             data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
-        except (OSError, ValueError):
+        except (OSError, ValueError, RecursionError):
             return {}, []
         if not isinstance(data, dict):
             return {}, []
@@ -224,7 +233,9 @@ def load_gemini_sessions() -> list[Session]:
                 cwd = root_file.read_text(encoding="utf-8").strip() if root_file.is_file() else ""
             except OSError:
                 cwd = ""
-            for path in sorted(list(chats.rglob("*.jsonl")) + list(chats.rglob("*.json"))):
+            # Main chats first, so a session is titled and ordered by its own chat, not a sub-agent's.
+            files = list(chats.rglob("*.jsonl")) + list(chats.rglob("*.json"))
+            for path in sorted(files, key=lambda p: (p.parent != chats, str(p))):
                 if path.suffix == ".json" and path.with_suffix(".jsonl").exists():
                     continue  # already migrated to .jsonl
                 sub_agent = path.parent != chats
@@ -276,6 +287,8 @@ def log_usage(tool: str, model: str, input_tokens: int = 0, output_tokens: int =
         log_usage("My app", r.model, r.usage.input_tokens, r.usage.output_tokens)
     """
     ts = timestamp or datetime.now(timezone.utc)
+    if ts.tzinfo is None:
+        ts = ts.astimezone()  # a plain datetime.now() means local time
     record = {
         "timestamp": ts.isoformat(), "tool": tool, "model": model,
         "session": session or f"{tool} {ts.astimezone().strftime('%Y-%m-%d')}",
@@ -292,14 +305,19 @@ def log_usage(tool: str, model: str, input_tokens: int = 0, output_tokens: int =
 
 
 def _custom_rows(path: Path):
-    if path.suffix.lower() == ".csv":
-        try:
-            with path.open(encoding="utf-8-sig", newline="") as fh:
-                yield from csv.DictReader(fh)
-        except OSError:
-            return
-    else:
+    if path.suffix.lower() != ".csv":
         yield from read_jsonl(path)
+        return
+    try:
+        # errors="replace": CSVs saved by Excel on Windows are often not UTF-8
+        text = path.read_text(encoding="utf-8-sig", errors="replace").replace("\x00", "")
+    except OSError:
+        return
+    csv.field_size_limit(2**31 - 1)  # long prompts in a cell
+    try:
+        yield from csv.DictReader(io.StringIO(text, newline=""))
+    except csv.Error:
+        return  # keep the rows read so far; a broken line ends this file only
 
 
 def _num(row: dict, *keys: str) -> int:
@@ -307,7 +325,7 @@ def _num(row: dict, *keys: str) -> int:
         v = row.get(k)
         try:
             n = int(float(v)) if v not in (None, "") else 0
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             n = 0
         if n > 0:
             return n
@@ -323,24 +341,24 @@ def load_custom_sessions() -> list[Session]:
         for row in _custom_rows(path):
             if not isinstance(row, dict):
                 continue
-            tool = (row.get("tool") or path.stem).strip()
+            tool = str(row.get("tool") or path.stem).strip()
             ts = parse_ts(row.get("timestamp")) or datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
-            sid = (row.get("session") or f"{tool} {ts.astimezone().strftime('%Y-%m-%d')}").strip()
+            sid = str(row.get("session") or f"{tool} {ts.astimezone().strftime('%Y-%m-%d')}").strip()
             key = (tool, sid)
             if key not in sessions:
-                s = Session(session_id=sid, project=row.get("project") or "", path=path, tool=tool)
+                s = Session(session_id=sid, project=str(row.get("project") or ""), path=path, tool=tool)
                 sessions[key] = (s, [])
             s, events = sessions[key]
-            s.project = s.project or row.get("project") or ""
+            s.project = s.project or str(row.get("project") or "")
             if row.get("prompt"):
-                events.append(("prompt", _text(row["prompt"]), ts))
+                events.append(("prompt", _text(str(row["prompt"])), ts))
             usage = Usage(
                 input=_num(row, "input_tokens", "input", "prompt_tokens"),
                 output=_num(row, "output_tokens", "output", "completion_tokens"),
                 cache_read=_num(row, "cache_read_tokens", "cache_read", "cached_tokens"),
                 cache_write=_num(row, "cache_write_tokens", "cache_write"),
             )
-            events.append(("call", ApiCall(ts, row.get("model") or "", usage, app=row.get("app") or tool)))
+            events.append(("call", ApiCall(ts, str(row.get("model") or ""), usage, app=str(row.get("app") or tool))))
     out = []
     for s, events in sessions.values():
         events.sort(key=lambda ev: (ev[2] if ev[0] == "prompt" else ev[1].timestamp) or datetime.min.replace(tzinfo=timezone.utc))
@@ -381,7 +399,7 @@ def source_status(claude_roots: list[Path] | None = None) -> list[dict]:
             "Automatic. Reads Gemini CLI chat logs."),
         row("OpenCode", [more.opencode_data_dir()], "opencode*.db",
             "Automatic. Reads OpenCode's local database (and older storage/ files)."),
-        row("Cline (app / CLI)", [more.cline_dir() / "data" / "sessions"], "*.messages.json",
+        row("Cline (app / CLI)", [more.cline_sessions_dir()], "*.messages.json",
             "Automatic. Reads the sessions the Cline app and CLI save."),
         *[row(f"{tool} (VS Code)", [d / "globalStorage" / ext for d in more.vscode_user_dirs()], "ui_messages.json",
               f"Automatic. Reads {tool} task history in VS Code, Cursor, Windsurf and other VS Code-based editors.")
@@ -391,3 +409,38 @@ def source_status(claude_roots: list[Path] | None = None) -> list[dict]:
         row("Custom log", [custom_dir()], "*.*",
             "Any other AI: `ai-tokens --add`, log_usage() in your scripts, or drop a CSV here."),
     ]
+
+
+def data_signature(claude_roots: list[Path] | None = None) -> tuple:
+    """Cheap fingerprint of every log folder (file count, newest change, total size).
+
+    The dashboard re-reads logs only when this changes, so its once-a-minute refresh
+    costs a folder scan, not a full parse of gigabytes of transcripts.
+    """
+    from . import more_sources as more
+    from . import pricing
+    from .core import default_roots
+
+    dirs = list(claude_roots if claude_roots is not None else default_roots())
+    dirs += [codex_home() / "sessions", codex_home() / "archived_sessions", *gemini_tmp_dirs(),
+             more.opencode_data_dir(), more.cline_sessions_dir(), more.qwen_dir() / "projects", custom_dir()]
+    dirs += [d / "globalStorage" / ext for d in more.vscode_user_dirs() for ext in more.VSCODE_EXTENSIONS]
+    count = newest = size = 0
+    for d in dirs:
+        for root, _subdirs, files in os.walk(d):
+            for name in files:
+                try:
+                    st = os.stat(os.path.join(root, name))
+                except OSError:
+                    continue
+                count += 1
+                size += st.st_size
+                newest = max(newest, st.st_mtime_ns)
+    prices = []
+    for f in (pricing.cache_file(), pricing.override_file()):
+        try:
+            prices.append(f.stat().st_mtime_ns)
+        except OSError:
+            prices.append(0)
+    return count, newest, size, tuple(prices)
+

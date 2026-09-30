@@ -221,7 +221,7 @@ function renderChrome() {
     b.innerHTML = `<span class="dot" style="background:${slotColor(state.toolColor[i])}"></span>${esc(name)}`;
     b.onclick = () => {
       if (state.hiddenTools.has(name)) state.hiddenTools.delete(name); else state.hiddenTools.add(name);
-      if (state.hiddenTools.size >= state.data.tools.length) state.hiddenTools.delete(name);  // keep one on
+      if (state.data.tools.every((t) => state.hiddenTools.has(t))) state.hiddenTools.delete(name);  // keep one on
       store.set("hiddenTools", [...state.hiddenTools]);
       render();
     };
@@ -608,8 +608,23 @@ function renderSessions() {
   list.sort(sorters[state.sessionSort]);
   $("sessionCount").textContent = `${fmt(list.length)} session${list.length === 1 ? "" : "s"} · ${range.label.toLowerCase()}`;
   const box = $("sessionList");
+  // Remember what's expanded, so a refresh doesn't fold everything the user opened.
+  const openTurns = new Map();
+  box.querySelectorAll("details.session[open]").forEach((det) => {
+    openTurns.set(det.dataset.key, new Set([...det.querySelectorAll("details.turn[open]")].map((t) => t.dataset.idx)));
+  });
   box.innerHTML = "";
-  list.slice(0, state.shown).forEach(({ s }) => box.appendChild(sessionNode(s)));
+  list.slice(0, state.shown).forEach(({ s }) => {
+    const node = sessionNode(s);
+    box.appendChild(node);
+    const turns = openTurns.get(node.dataset.key);
+    if (!turns) return;
+    node._fill();
+    node.open = true;
+    node.querySelectorAll("details.turn").forEach((t) => {
+      if (turns.has(t.dataset.idx)) { t._fill(); t.open = true; }
+    });
+  });
   if (!list.length) box.innerHTML = `<div class="card empty">No sessions match.</div>`;
   $("moreSessions").hidden = list.length <= state.shown;
 }
@@ -620,17 +635,18 @@ function sessionNode(s) {
   const d = state.data;
   const det = document.createElement("details");
   det.className = "session";
+  det.dataset.key = `${s.tool}:${s.id}`;
   const meta = [d.tools[s.tool], d.projects[s.project], s.branch, dateTime(s._start), duration(s._end - s._start),
     s._models.map((m) => d.models[m]).join(", ")].filter(Boolean).join(" · ");
   det.innerHTML = `<summary>${CARET}
     <span class="s-title"><span class="dot" style="background:${slotColor(state.toolColor[s.tool])}"></span> ${esc(s.title)}</span>
     <span class="s-nums"><b>${fmt(s._total)}</b><span>${esc(money(s._cost))}</span></span>
     <span class="s-meta">${esc(meta)}</span></summary><div class="turns"></div>`;
-  det.addEventListener("toggle", () => {
+  det._fill = () => {
     const box = det.querySelector(".turns");
-    if (!det.open || box.childElementCount) return;
-    s.turns.forEach((t, n) => box.appendChild(turnNode(t, n)));
-  });
+    if (!box.childElementCount) s.turns.forEach((t, n) => box.appendChild(turnNode(t, n)));
+  };
+  det.addEventListener("toggle", () => { if (det.open) det._fill(); });
   return det;
 }
 
@@ -640,10 +656,11 @@ function turnNode(t, n) {
   t.c.forEach((c) => { tot += c[3] + c[4] + c[5] + c[6]; cost += c[7]; });
   const det = document.createElement("details");
   det.className = "turn" + (t.p.startsWith("[sub-agent]") ? " sub" : "");
+  det.dataset.idx = String(n);
   det.innerHTML = `<summary>${CARET}<span class="t-prompt" title="${esc(t.p)}">${n + 1}. ${esc(t.p || "(before the first prompt)")}</span>
     <span class="s-nums"><b>${fmt(tot)}</b><span>${esc(timeLabel(t.t))} · ${t.c.length} call${t.c.length === 1 ? "" : "s"} · ${esc(money(cost))}</span></span></summary>`;
-  det.addEventListener("toggle", () => {
-    if (!det.open || det.querySelector(".calls")) return;
+  det._fill = () => {
+    if (det.querySelector(".calls")) return;
     const rows = t.c.map((c, i) => `<tr><td>${i + 1}. ${esc(d.models[c[1]])}${c[9] ? " (sub-agent)" : ""}</td><td>${esc(timeLabel(c[0]))}</td>
       <td class="opt">${fmt(c[3])}</td><td>${fmt(c[4])}</td><td class="opt">${fmt(c[5])}</td><td class="opt">${fmt(c[6])}</td>
       <td>${fmt(c[3] + c[4] + c[5] + c[6])}</td><td>${c[8] ? esc(money(c[7])) : "no price"}</td></tr>`).join("");
@@ -652,7 +669,8 @@ function turnNode(t, n) {
     wrap.innerHTML = `<table class="data"><thead><tr><th>API call</th><th>Time</th><th class="opt">Input</th><th>Output</th>
       <th class="opt">Cache write</th><th class="opt">Cache read</th><th>Total</th><th>Est. cost</th></tr></thead><tbody>${rows}</tbody></table>`;
     det.appendChild(wrap);
-  });
+  };
+  det.addEventListener("toggle", () => { if (det.open) det._fill(); });
   return det;
 }
 
@@ -751,7 +769,8 @@ function init() {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => { if (innerWidth !== lastWidth) { lastWidth = innerWidth; if (state.page === "overview") renderOverview(); } }, 150);
   });
-  setInterval(() => { if (!document.hidden) load(true); }, 60000);
+  // The server re-reads logs only if a log file changed, so this is cheap; the ↻ button forces a full re-read.
+  setInterval(() => { if (!document.hidden) load(false); }, 60000);
   setInterval(updateStamp, 30000);
   // Tells the local server the dashboard is still open (it quits when every tab is closed).
   setInterval(() => fetch("/api/ping", { headers: { "X-Token": TOKEN } }).catch(() => {}), 45000);

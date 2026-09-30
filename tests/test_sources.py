@@ -5,16 +5,16 @@ files, Gemini CLI chat logs, Claude Code transcripts). Run: python -m unittest
 """
 
 import json
-import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ai_token_tracker import core, sources  # noqa: E402
+from isolation import isolate  # noqa: E402
 
 
 def write_jsonl(path: Path, rows) -> None:
@@ -25,14 +25,8 @@ def write_jsonl(path: Path, rows) -> None:
 class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
-        env = {
-            "CODEX_HOME": str(self.tmp / "codex"),
-            "GEMINI_CLI_HOME": str(self.tmp / "ghome"),
-            "AI_TOKEN_TRACKER_DIR": str(self.tmp / "custom"),
-        }
-        patcher = mock.patch.dict(os.environ, env)
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        isolate(self, self.tmp, CODEX_HOME=str(self.tmp / "codex"), GEMINI_CLI_HOME=str(self.tmp / "ghome"),
+                AI_TOKEN_TRACKER_DIR=str(self.tmp / "custom"))
 
 
 class CodexTests(Base):

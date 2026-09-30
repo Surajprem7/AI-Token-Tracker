@@ -1,13 +1,13 @@
 name: Build apps
 
-# Run manually from the Actions tab, or push a tag like v1.0.0 to publish a release.
+# Run manually from the Actions tab, or push a tag like v2.1.0 to publish a release.
 on:
   workflow_dispatch:
   push:
     tags: ["v*"]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -24,7 +24,8 @@ jobs:
       - name: Tests
         run: python -m unittest discover -s tests
       - name: Install build tools
-        run: python -m pip install pyinstaller build
+        # Pinned: a new PyInstaller major version must not change the apps without us noticing.
+        run: python -m pip install "pyinstaller==6.22.3" build certifi
       - name: Python package (wheel)
         if: matrix.os == 'ubuntu-latest'
         run: python -m build --wheel --outdir dist
@@ -32,22 +33,42 @@ jobs:
         shell: bash
         run: |
           # Windows/macOS get a native app window (pywebview); Linux opens the dashboard in the browser.
-          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then pip install .; EXTRA=""; else pip install ".[app]"; EXTRA="--collect-all webview"; fi
-          pyinstaller --noconfirm --onefile --windowed --name AITokenTracker --collect-data ai_token_tracker $EXTRA packaging/app.py
-          pyinstaller --noconfirm --onefile --console --name ai-tokens --collect-data ai_token_tracker packaging/cli.py
+          # certifi is bundled so "Update prices online" can check HTTPS certificates in the frozen app.
+          COMMON="--noconfirm --collect-data ai_token_tracker --collect-data certifi"
+          case "${{ matrix.os }}" in
+            ubuntu-latest)
+              pip install .
+              pyinstaller $COMMON --onefile --windowed --name AITokenTracker packaging/app.py ;;
+            macos-latest)
+              pip install ".[app]"
+              # A normal .app bundle (one-folder); PyInstaller is dropping one-file .app bundles.
+              pyinstaller $COMMON --collect-all webview --windowed --name AITokenTracker \
+                --osx-bundle-identifier io.github.surajprem7.aitokentracker packaging/app.py ;;
+            windows-latest)
+              pip install ".[app]"
+              pyinstaller $COMMON --collect-all webview --onefile --windowed --name AITokenTracker packaging/app.py ;;
+          esac
+          pyinstaller $COMMON --onefile --console --name ai-tokens packaging/cli.py
       - name: Windows installer
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging\windows-installer.iss
+          $version = python -c "import ai_token_tracker; print(ai_token_tracker.__version__)"
+          $iscc = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe", "$env:ProgramFiles\Inno Setup*\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $iscc) { throw "Inno Setup compiler (ISCC.exe) not found" }
+          & $iscc.FullName "/DAppVersion=$version" packaging\windows-installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
       - name: Collect files
         shell: bash
         run: |
           mkdir out
           case "${{ matrix.os }}" in
             windows-latest) cp dist/AITokenTracker-Setup.exe dist/AITokenTracker.exe dist/ai-tokens.exe out/ ;;
-            macos-latest)   (cd dist && zip -qry ../out/AITokenTracker-macOS.zip AITokenTracker.app ai-tokens) ;;
+            macos-latest)
+              # Apple Silicon (M1 and later) build; Intel Macs can use the pip install instead.
+              ditto -c -k --keepParent dist/AITokenTracker.app out/AITokenTracker-macOS-AppleSilicon.zip
+              cp dist/ai-tokens out/ai-tokens-macos ;;
             ubuntu-latest)  cp dist/*.whl out/ && tar -czf out/AITokenTracker-linux.tar.gz -C dist AITokenTracker ai-tokens ;;
           esac
       - uses: actions/upload-artifact@v4
@@ -59,6 +80,8 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # only this job publishes, and only for version tags
     steps:
       - uses: actions/download-artifact@v4
         with:

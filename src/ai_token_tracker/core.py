@@ -59,6 +59,7 @@ class ApiCall:
     subagent: bool = False
     app: str = ""  # which app sent the request (terminal, desktop, web, IDE, ...)
     reported_cost: float | None = None  # cost the tool itself logged, used when we have no price
+    key: str = ""  # the tool's id for this response, used to drop copies in forked sessions
 
 
 @dataclass
@@ -178,9 +179,11 @@ def parse_ts(value) -> datetime | None:
     if not isinstance(value, str):
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        ts = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
     except ValueError:
         return None
+    # A timestamp without a UTC offset (e.g. "2026-09-30 10:00:00" in a CSV) means local time.
+    return ts.astimezone() if ts.tzinfo is None else ts
 
 
 def usage_from(raw: dict) -> Usage:
@@ -228,7 +231,7 @@ def read_jsonl(path: Path):
                     continue
                 try:
                     obj = json.loads(line)
-                except json.JSONDecodeError:
+                except (ValueError, RecursionError):  # broken or absurdly nested line
                     continue
                 if isinstance(obj, dict):
                     yield obj
@@ -276,6 +279,7 @@ def collect_calls(path: Path, subagent: bool, on_prompt=None, meta=None) -> list
             usage=usage_from(raw),
             subagent=subagent or bool(entry.get("isSidechain")),
             app=app,
+            key=key if not key.startswith("line") else "",
         )
     return [calls[k] for k in order]
 
@@ -338,18 +342,6 @@ BY_TOOL = lambda s, c: s.tool  # noqa: E731
 BY_MODEL = lambda s, c: c.model or "unknown"  # noqa: E731
 BY_APP = lambda s, c: c.app or "unknown"  # noqa: E731
 BY_PROJECT = lambda s, c: s.project  # noqa: E731
-
-
-def by_day(sessions: list[Session]) -> dict[str, dict[str, Usage]]:
-    """{'2026-09-30': {'Opus': Usage, ...}} using local dates."""
-    days: dict[str, dict[str, Usage]] = {}
-    for s in sessions:
-        for call in s.calls:
-            if not call.timestamp:
-                continue
-            day = call.timestamp.astimezone().strftime("%Y-%m-%d")
-            days.setdefault(day, {}).setdefault(model_family(call.model), Usage()).add(call.usage)
-    return days
 
 
 def load_session(path: Path, project: str) -> Session:
@@ -453,7 +445,29 @@ def load_claude_sessions(roots: list[Path]) -> list[Session]:
                     s.project = pretty_project(proj.name)
                 if s.calls:
                     sessions.append(s)
-    return sessions
+    return _drop_forked_copies(sessions)
+
+
+def _drop_forked_copies(sessions: list[Session]) -> list[Session]:
+    """A forked or resumed session file repeats earlier replies with the same message id.
+
+    Count each reply once, in the session where it first appeared.
+    """
+    epoch = datetime.min.replace(tzinfo=timezone.utc)
+    seen: set[str] = set()
+    # Oldest first; a fork starts at the same moment as its original but ends later.
+    for s in sorted(sessions, key=lambda s: (s.start or epoch, s.end or epoch, s.session_id)):
+        for t in s.turns:
+            kept = []
+            for c in t.calls:
+                if c.key and c.key in seen:
+                    continue
+                if c.key:
+                    seen.add(c.key)
+                kept.append(c)
+            t.calls = kept
+        s.turns = [t for t in s.turns if t.calls]  # copied prompts with no replies left add nothing
+    return [s for s in sessions if s.calls]
 
 
 

@@ -18,11 +18,17 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .core import ApiCall, Session, Turn, Usage, read_jsonl  # noqa: F401  (read_jsonl used by callers)
+import math
+
+from .core import ApiCall, Session, Turn, Usage, read_jsonl
+from .sources import _int, _text as _text_of
 
 
-def _int(value) -> int:
-    return int(value) if isinstance(value, (int, float)) and value > 0 else 0
+def _cost(value) -> float | None:
+    """A cost figure a tool logged itself, if it is a sane number."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
+        return None
+    return float(value)
 
 
 def _ms(value) -> datetime | None:
@@ -142,7 +148,7 @@ def _read_opencode_db(path: Path, b: _OpenCodeBuilder) -> None:
         for row in con.execute("SELECT id, session_id, data FROM message"):
             try:
                 data = json.loads(row["data"])
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, RecursionError):
                 continue
             if isinstance(data, dict):
                 b.add_message(row["session_id"], row["id"], data)
@@ -154,7 +160,7 @@ def _read_opencode_db(path: Path, b: _OpenCodeBuilder) -> None:
                 continue
             try:
                 data = json.loads(row["data"])
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, RecursionError):
                 continue
             if isinstance(data, dict) and data.get("type") == "text" and not data.get("synthetic"):
                 b.prompts[row["message_id"]] = data.get("text") or ""
@@ -170,7 +176,7 @@ def _read_opencode_files(storage: Path, b: _OpenCodeBuilder) -> None:
         try:
             data = json.loads(p.read_text(encoding="utf-8", errors="replace"))
             return data if isinstance(data, dict) else None
-        except (OSError, ValueError):
+        except (OSError, ValueError, RecursionError):
             return None
 
     for p in (storage / "session").rglob("*.json") if (storage / "session").is_dir() else []:
@@ -243,25 +249,24 @@ def cline_dir() -> Path:
     return Path(os.environ.get("CLINE_DIR") or Path.home() / ".cline").expanduser()
 
 
-def _text_of(content) -> str:
-    if isinstance(content, str):
-        return _clean(content)
-    if isinstance(content, list):
-        return _clean(" ".join(p.get("text", "") for p in content if isinstance(p, dict) and isinstance(p.get("text"), str)))
-    return ""
+def cline_sessions_dir() -> Path:
+    """Cline's own lookup order: CLINE_SESSION_DATA_DIR, then CLINE_DATA_DIR/sessions, then ~/.cline/data/sessions."""
+    if os.environ.get("CLINE_SESSION_DATA_DIR"):
+        return Path(os.environ["CLINE_SESSION_DATA_DIR"]).expanduser()
+    data_dir = Path(os.environ.get("CLINE_DATA_DIR") or cline_dir() / "data").expanduser()
+    return data_dir / "sessions"
 
 
 def _load_json(path: Path):
     try:
         return json.loads(path.read_text(encoding="utf-8", errors="replace"))
-    except (OSError, ValueError):
+    except (OSError, ValueError, RecursionError):
         return None
 
 
 def load_cline_sessions() -> list[Session]:
     """Cline CLI / desktop app: <cline dir>/data/sessions/<id>/<id>.messages.json."""
-    data_dir = Path(os.environ.get("CLINE_DATA_DIR") or cline_dir() / "data").expanduser()
-    sessions_dir = Path(os.environ.get("CLINE_SESSION_DATA_DIR") or data_dir / "sessions").expanduser()
+    sessions_dir = cline_sessions_dir()
     if not sessions_dir.is_dir():
         return []
     out = []
@@ -299,7 +304,7 @@ def load_cline_sessions() -> list[Session]:
             info = m.get("modelInfo") if isinstance(m.get("modelInfo"), dict) else {}
             cost = metrics.get("cost")
             call = ApiCall(ts, str(info.get("id") or ""), usage, app="Cline",
-                           reported_cost=float(cost) if isinstance(cost, (int, float)) else None)
+                           reported_cost=_cost(cost))
             if turn is None:
                 turn = Turn(prompt="", timestamp=ts)
                 s.turns.append(turn)
@@ -344,10 +349,12 @@ def _load_ui_messages(path: Path, tool: str, app: str) -> Session | None:
             if text:
                 turn = Turn(prompt=text, timestamp=ts)
                 s.turns.append(turn)
-        elif kind == "api_req_started":
+        elif kind in ("api_req_started", "deleted_api_reqs"):
+            # deleted_api_reqs: one entry holding the summed usage of requests that "Restore Task"
+            # or a message delete removed from the chat. They were still paid for, so they count.
             try:
                 info = json.loads(m.get("text") or "{}")
-            except ValueError:
+            except (ValueError, RecursionError):
                 continue
             if not isinstance(info, dict):
                 continue
@@ -359,7 +366,7 @@ def _load_ui_messages(path: Path, tool: str, app: str) -> Session | None:
             cost = info.get("cost")
             model = str(info.get("model") or info.get("modelId") or f"model not logged ({tool})")
             call = ApiCall(ts, model, usage, app=app,
-                           reported_cost=float(cost) if isinstance(cost, (int, float)) else None)
+                           reported_cost=_cost(cost))
             if turn is None:
                 turn = Turn(prompt="", timestamp=ts)
                 s.turns.append(turn)

@@ -6,7 +6,6 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime
 from pathlib import Path
 
 from .core import (
@@ -176,7 +175,7 @@ def print_stats(sessions: list[Session]) -> None:
 def find_session(sessions: list[Session], ref: str) -> Session | None:
     if ref in ("latest", "last", "0"):
         return sessions[0]
-    if ref.isdigit() and int(ref) <= len(sessions):
+    if ref.isdigit() and 1 <= int(ref) <= len(sessions):
         return sessions[int(ref) - 1]
     matches = [s for s in sessions if s.session_id.startswith(ref)]
     return matches[0] if len(matches) == 1 else None
@@ -227,7 +226,7 @@ def _main(argv: list[str] | None = None) -> int:
     ap.add_argument("--stats", action="store_true", help="totals per AI tool, engine (model), app and project")
     ap.add_argument("--json", action="store_true", help="print JSON instead of tables")
     ap.add_argument("--serve", action="store_true", help="run the dashboard in your browser (no app window)")
-    ap.add_argument("--port", type=int, default=0, help="with --serve: port to use (default: any free port)")
+    ap.add_argument("--port", type=int, default=None, help="with --serve: port to use (default 47690, or any free port)")
     ap.add_argument("--no-open", action="store_true", help="with --serve: don't open the browser")
     ap.add_argument("--sources", action="store_true", help="show which AI tools were found and where")
     ap.add_argument("--update-prices", action="store_true",

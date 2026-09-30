@@ -1,19 +1,19 @@
 [build-system]
-requires = ["setuptools>=64"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-token-tracker"
 dynamic = ["version"]
-description = "Track token usage across AI tools (Claude Code, Codex CLI, Gemini CLI and any custom source) from local logs."
+description = "See how many tokens (and roughly how much money) your AI coding tools use, from their local logs."
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = []
-license = { text = "MIT" }
+license = "MIT"
 
 [project.optional-dependencies]
 # Native app window instead of a browser tab (Edge WebView2 on Windows, WebKit on macOS).
-app = ["pywebview>=5"]
+app = ["pywebview>=5", "certifi"]
 
 [project.scripts]
 ai-tokens = "ai_token_tracker.cli:main"

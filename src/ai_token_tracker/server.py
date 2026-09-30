@@ -9,7 +9,6 @@ read your usage data.
 from __future__ import annotations
 
 import json
-import mimetypes
 import secrets
 import threading
 import time
@@ -20,10 +19,16 @@ from urllib.parse import parse_qs, urlparse
 
 from . import __version__, pricing
 from .core import Session, default_roots, load_sessions
-from .sources import source_status
+from .sources import data_signature, source_status
 
 WEB_DIR = Path(__file__).with_name("web")
-PROMPT_CHARS = 400  # prompts are clipped in the payload; the dashboard only shows a preview
+PROMPT_CHARS = 400
+DEFAULT_PORT = 47690  # a steady address keeps the dashboard's saved settings between launches
+# Fixed types: on Windows, mimetypes reads the registry, which can map .js to text/plain and
+# (with nosniff) stop the dashboard from loading.
+CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+                 ".css": "text/css; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml",
+                 ".png": "image/png", ".ico": "image/x-icon"}  # prompts are clipped in the payload; the dashboard only shows a preview
 
 
 def build_payload(sessions: list[Session], roots: list[Path] | None) -> dict:
@@ -75,15 +80,17 @@ class Dashboard:
         self.token = secrets.token_urlsafe(24)
         self.lock = threading.Lock()
         self.payload: bytes = b""
-        self.loaded_at = 0.0
+        self.signature = None
         self.last_ping = time.monotonic()
 
-    def data(self, refresh: bool = False) -> bytes:
+    def data(self, force: bool = False) -> bytes:
+        """The dashboard JSON; logs are re-read only when a log file changed (or when forced)."""
         with self.lock:
-            if refresh or not self.payload or time.monotonic() - self.loaded_at > 30:
+            signature = data_signature(self.roots)
+            if force or not self.payload or signature != self.signature:
                 sessions = load_sessions(self.roots)
                 self.payload = json.dumps(build_payload(sessions, self.roots), separators=(",", ":")).encode()
-                self.loaded_at = time.monotonic()
+                self.signature = signature
             return self.payload
 
 
@@ -113,7 +120,7 @@ def make_handler(app: Dashboard, port_ref: list):
 
         def _api_allowed(self, query: dict) -> bool:
             token = self.headers.get("X-Token") or (query.get("t") or [""])[0]
-            return secrets.compare_digest(token, app.token)
+            return secrets.compare_digest(token.encode("utf-8", "replace"), app.token.encode())
 
         def do_GET(self):
             if not self._host_ok():
@@ -126,7 +133,7 @@ def make_handler(app: Dashboard, port_ref: list):
                 app.last_ping = time.monotonic()
                 if url.path == "/api/data":
                     try:
-                        return self._send(200, app.data(refresh="refresh" in query))
+                        return self._send(200, app.data(force="refresh" in query))
                     except Exception as exc:  # report instead of a blank page
                         return self._send(500, json.dumps({"error": str(exc)}).encode())
                 if url.path == "/api/ping":
@@ -136,9 +143,7 @@ def make_handler(app: Dashboard, port_ref: list):
             path = (WEB_DIR / name).resolve()
             if WEB_DIR.resolve() not in path.parents or not path.is_file():
                 return self._send(404, b"not found", "text/plain")
-            ctype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-            if ctype.startswith("text/") or ctype.endswith("javascript"):
-                ctype += "; charset=utf-8"
+            ctype = CONTENT_TYPES.get(path.suffix.lower(), "application/octet-stream")
             return self._send(200, path.read_bytes(), ctype)
 
         def do_POST(self):
@@ -152,18 +157,27 @@ def make_handler(app: Dashboard, port_ref: list):
                     n = pricing.update_prices()
                 except Exception as exc:
                     return self._send(502, json.dumps({"error": f"Could not update prices: {exc}"}).encode())
-                app.data(refresh=True)
+                app.data(force=True)
                 return self._send(200, json.dumps({"models": n}).encode())
             return self._send(404, b'{"error":"not found"}')
 
     return Handler
 
 
-def start(port: int = 0, roots: list[Path] | None = None) -> tuple[ThreadingHTTPServer, Dashboard, str]:
-    """Start the server in a background thread. Returns (server, app, url)."""
+def start(port: int | None = None, roots: list[Path] | None = None) -> tuple[ThreadingHTTPServer, Dashboard, str]:
+    """Start the server in a background thread. Returns (server, app, url).
+
+    port None: use DEFAULT_PORT, or any free port if it's taken. 0: any free port.
+    """
     app = Dashboard(roots)
-    port_ref = [port]
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(app, port_ref))
+    port_ref = [0]
+    handler = make_handler(app, port_ref)
+    try:
+        httpd = ThreadingHTTPServer(("127.0.0.1", DEFAULT_PORT if port is None else port), handler)
+    except OSError:
+        if port not in (None, DEFAULT_PORT):
+            raise  # the user asked for this exact port
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     port_ref[0] = httpd.server_address[1]
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{port_ref[0]}/?t={app.token}"

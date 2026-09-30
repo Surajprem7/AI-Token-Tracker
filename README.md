@@ -95,7 +95,8 @@ Windows SmartScreen may say "Windows protected your PC" because the app isn't co
 There is also a portable `AITokenTracker.exe` if you'd rather not install anything.
 
 ### macOS / Linux
-Download `AITokenTracker-macOS.zip` or `AITokenTracker-linux.tar.gz` from the same place.
+Download `AITokenTracker-macOS-AppleSilicon.zip` (Macs with an M1 or later chip) or `AITokenTracker-linux.tar.gz` from the same place.
+On an Intel Mac, use the pip install below.
 On macOS the app is unsigned, so the first time you open it, right-click it and choose *Open*.
 
 ### Any computer with Python 3.9+ (pip): Windows, macOS or Linux
@@ -105,7 +106,7 @@ This is the quickest way to try it before the installers are built.
 1. Install Python from [python.org](https://www.python.org/downloads/). Keep the "py launcher" option ticked.
 2. Open **PowerShell** in the folder where you saved the `.whl` file and run:
    ```powershell
-   py -m pip install --user "ai_token_tracker-2.1.0-py3-none-any.whl[app]"
+   py -m pip install --user "ai_token_tracker-2.2.0-py3-none-any.whl[app]"
    py -m ai_token_tracker            # opens the dashboard window
    py -m ai_token_tracker --stats    # command-line summary
    ```
@@ -113,7 +114,7 @@ This is the quickest way to try it before the installers are built.
 
 **macOS**
 ```bash
-python3 -m pip install --user "ai_token_tracker-2.1.0-py3-none-any.whl[app]"
+python3 -m pip install --user "ai_token_tracker-2.2.0-py3-none-any.whl[app]"
 python3 -m ai_token_tracker            # opens the dashboard window
 ```
 If macOS doesn't have Python yet, `python3` offers to install the Command Line Tools, or you can use [python.org](https://www.python.org/downloads/).
@@ -170,5 +171,5 @@ python -m unittest discover -s tests   # reader tests for every AI tool
   No code or assets were copied. Everything here was written from scratch.
 - Model prices come from [LiteLLM](https://github.com/BerriAI/litellm)'s public price list (MIT).
 
-To build the apps, open **Actions → Build apps → Run workflow** in GitHub, or push a tag such as `v2.1.0` to publish a Release.
+To build the apps, open **Actions → Build apps → Run workflow** in GitHub, or push a tag such as `v2.2.0` to publish a Release.
 That builds the Windows installer and portable `.exe`, the macOS app, the Linux binary and the Python wheel.

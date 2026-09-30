@@ -17,7 +17,9 @@ figure then shows what the same usage would cost on the pay-as-you-go API.
 from __future__ import annotations
 
 import json
+import math
 import re
+import ssl
 import urllib.request
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -28,6 +30,9 @@ from .core import Usage
 LITELLM_URL = "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json"
 PROVIDERS = {"anthropic", "openai", "gemini", "xai", "deepseek", "mistral", "moonshot", "dashscope", "groq", "ollama"}
 BUNDLED = Path(__file__).with_name("data") / "prices.json"
+# Provider prefixes as LiteLLM writes them, model makers before resellers and local models.
+PREFIX_ORDER = ("gemini", "xai", "deepseek", "mistral", "moonshot", "dashscope", "groq", "ollama")
+PROVIDER_RANK = {"": -1, **{p: i for i, p in enumerate(PREFIX_ORDER)}}
 
 # (input, output, cache_read, cache_write_5m, cache_write_1h) in USD per 1M tokens
 Price = tuple
@@ -55,10 +60,15 @@ def _read(path: Path) -> dict:
         return {}
 
 
+def _ok(v) -> bool:
+    """A usable price: a real, finite, non-negative number."""
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) and v >= 0
+
+
 def _row(values: list) -> Price | None:
     if not isinstance(values, list) or len(values) < 2:
         return None
-    vals = [v if isinstance(v, (int, float)) else None for v in values] + [None] * 5
+    vals = [v if _ok(v) else None for v in values] + [None] * 5
     inp, out, read, w5, w1 = vals[:5]
     if inp is None or out is None:
         return None
@@ -81,11 +91,16 @@ def price_table() -> tuple[dict, dict]:
         if models:
             info["source"], info["updated"] = layer, doc.get("fetched")
     for name, p in _read(override_file()).items():
-        if isinstance(p, dict) and isinstance(p.get("input"), (int, float)):
-            w = p.get("cache_write", p["input"])
-            table[normalize(name)] = (p["input"], p.get("output", 0), p.get("cache_read", p["input"]), w,
-                                      p.get("cache_write_1h", w))
-            info["overrides"] += 1
+        if not (isinstance(name, str) and isinstance(p, dict) and _ok(p.get("input"))):
+            continue  # an override without a usable input price is ignored rather than guessed
+
+        def field(key, default):
+            return p[key] if _ok(p.get(key)) else default
+
+        inp = p["input"]
+        w5 = field("cache_write", inp)
+        table[normalize(name)] = (inp, field("output", 0), field("cache_read", inp), w5, field("cache_write_1h", w5))
+        info["overrides"] += 1
     return table, info
 
 
@@ -110,14 +125,22 @@ def lookup(model: str) -> Price | None:
         return None
     table, _ = price_table()
     m = normalize(model)
-    candidates = [m, m.split("/")[-1]]  # "openai/gpt-5" -> "gpt-5"
-    candidates += [f"{p}/{m.split('/')[-1]}" for p in ("gemini", "xai", "deepseek", "mistral", "moonshot", "dashscope", "ollama")]
-    for c in candidates:
+    bare = m.split("/")[-1]  # "openai/gpt-5" -> "gpt-5"
+    # Exact matches, model makers first; resellers (dashscope, groq) and local Ollama last.
+    for c in [m, bare] + [f"{p}/{bare}" for p in PREFIX_ORDER]:
         if c in table:
             return table[c]
-    # Longest known id that the model starts with: "gpt-5-codex-high" -> "gpt-5-codex"
-    bare = m.split("/")[-1]
-    best = max((k for k in table if bare.startswith(k.split("/")[-1] + "-")), key=len, default=None)
+    # Otherwise the longest known id the model starts with: "gpt-5-codex-high" -> "gpt-5-codex".
+    # Compare ids without their provider prefix, prefer the maker's own row, and never fall back
+    # to a free local Ollama row for what is probably a hosted model.
+    best, best_rank = None, None
+    for k in table:
+        provider, _, kbare = k.rpartition("/")
+        if provider == "ollama" or not bare.startswith(kbare + "-"):
+            continue
+        rank = (len(kbare), -PROVIDER_RANK.get(provider, len(PREFIX_ORDER)))
+        if best_rank is None or rank > best_rank:
+            best, best_rank = k, rank
     return table[best] if best else None
 
 
@@ -167,9 +190,20 @@ def trim(litellm: dict) -> dict:
     return out
 
 
+def _ssl_context() -> ssl.SSLContext:
+    """HTTPS certificates: the bundled certifi list when available (the standalone apps ship it,
+    because a frozen Python can't find the system's certificates on macOS and some Linux systems)."""
+    try:
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    except (ImportError, OSError):
+        return ssl.create_default_context()
+
+
 def update_prices(timeout: float = 30) -> int:
     """Download the latest LiteLLM price list into the local cache. Returns model count."""
-    with urllib.request.urlopen(LITELLM_URL, timeout=timeout) as resp:  # noqa: S310 - fixed https URL
+    with urllib.request.urlopen(LITELLM_URL, timeout=timeout, context=_ssl_context()) as resp:  # noqa: S310
         data = json.loads(resp.read().decode("utf-8"))
     models = trim(data)
     if len(models) < 50:

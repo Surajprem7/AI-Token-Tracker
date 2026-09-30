@@ -1,26 +1,24 @@
 """Tests for cost estimates and the local dashboard server."""
 
 import json
-import os
 import sys
 import tempfile
 import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
-from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ai_token_tracker import core, pricing, server, sources  # noqa: E402
+from isolation import isolate  # noqa: E402
 
 
 class PricingTests(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
-        patcher = mock.patch.dict(os.environ, {"AI_TOKEN_TRACKER_DIR": str(self.tmp)})
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        isolate(self, self.tmp, AI_TOKEN_TRACKER_DIR=str(self.tmp))
         pricing.reload()
         self.addCleanup(pricing.reload)
 
@@ -58,10 +56,7 @@ class ServerTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.tmp = Path(tempfile.mkdtemp())
-        cls.env = mock.patch.dict(os.environ, {
-            "CODEX_HOME": str(cls.tmp / "none"), "GEMINI_CLI_HOME": str(cls.tmp / "none"),
-            "AI_TOKEN_TRACKER_DIR": str(cls.tmp / "custom")})
-        cls.env.start()
+        isolate(cls, cls.tmp, AI_TOKEN_TRACKER_DIR=str(cls.tmp / "custom"))
         sources.log_usage("ChatGPT", "gpt-5", 1000, 200, prompt="<script>alert(1)</script>")
         cls.httpd, cls.app, cls.url = server.start(0, roots=[cls.tmp / "empty"])
         cls.base = cls.url.split("/?")[0]
@@ -69,7 +64,7 @@ class ServerTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.httpd.shutdown()
-        cls.env.stop()
+        cls.httpd.server_close()
 
     def get(self, path, headers=None):
         req = urllib.request.Request(self.base + path, headers=headers or {})

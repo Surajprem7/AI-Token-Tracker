@@ -6,18 +6,18 @@ ui_messages.json, and Qwen Code's ui_telemetry records).
 """
 
 import json
-import os
 import sqlite3
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ai_token_tracker import more_sources as more  # noqa: E402
 from ai_token_tracker import pricing  # noqa: E402
+from isolation import isolate  # noqa: E402
 
 
 def write(path: Path, text: str) -> None:
@@ -28,13 +28,8 @@ def write(path: Path, text: str) -> None:
 class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
-        env = {"XDG_DATA_HOME": str(self.tmp / "share"), "CLINE_DIR": str(self.tmp / "cline"),
-               "QWEN_HOME": str(self.tmp / "qwen"), "AI_TOKEN_TRACKER_DIR": str(self.tmp / "att")}
-        patcher = mock.patch.dict(os.environ, env)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-        for key in ("CLINE_DATA_DIR", "CLINE_SESSION_DATA_DIR"):
-            os.environ.pop(key, None)
+        isolate(self, self.tmp, XDG_DATA_HOME=str(self.tmp / "share"), CLINE_DIR=str(self.tmp / "cline"),
+                QWEN_HOME=str(self.tmp / "qwen"), AI_TOKEN_TRACKER_DIR=str(self.tmp / "att"))
 
 
 ASSISTANT = {"role": "assistant", "modelID": "claude-sonnet-4-5", "providerID": "anthropic",
