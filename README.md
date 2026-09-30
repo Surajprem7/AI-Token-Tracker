@@ -1,25 +1,62 @@
-# AI Token Tracker
+# Claude Token Tracker
 
-A small, dependency-free Python script that shows how many tokens each **Claude Code** session used.
+A small desktop app (plus a command-line tool) that shows how many tokens you spend in **Claude Code**:
+per session, per prompt, per engine (model) and per Claude app.
 
-Claude Code saves a transcript of every session in `~/.claude/projects/<project>/<session-id>.jsonl`.
-Every reply in those files includes the API `usage` numbers. The script adds them up, so it needs no API key and no network access.
+It reads the transcripts Claude Code already saves on your computer (`~/.claude/projects/…/*.jsonl`).
+Every reply in them records its exact token counts, so the app needs **no API key, no login and no internet**.
+It only reads those files. It never changes them and never sends anything anywhere.
 
-## Usage
+## The app
 
+**Dashboard tab**
+- Totals for today, the last 7 days, the last 30 days and all time
+- A chart of tokens per day for the last 14 days, coloured by engine (Opus / Sonnet / Haiku / Fable)
+- Tables **by engine (model)**, **by AI app** (terminal, VS Code, JetBrains, Desktop, web, Agent SDK) and **by project**
+
+**Sessions tab**
+- A card with the latest session's totals (click any session to show that one instead)
+- Every session in a list. Click ▸ to expand a session into its prompts, and a prompt into its individual API calls
+- A filter box, and a *Folder…* button if your transcripts are somewhere unusual
+
+The app refreshes itself every 60 seconds.
+
+## Install
+
+### Windows: installer (easiest)
+Download `ClaudeTokenTracker-Setup.exe` from the repo's **Releases** page (or from the *Build apps* workflow run under **Actions**) and run it.
+- It installs for your user only, so you don't need admin rights.
+- It adds a Start menu entry and, if you want, a desktop shortcut.
+- To uninstall it, go to *Settings → Apps*.
+
+Windows SmartScreen may say "Windows protected your PC" because the app isn't code-signed. Click *More info → Run anyway*.
+There is also a portable `ClaudeTokenTracker.exe` if you'd rather not install anything.
+
+### macOS / Linux
+Download `ClaudeTokenTracker-macOS.zip` or `ClaudeTokenTracker-linux.tar.gz` from the same place.
+On macOS the app is unsigned, so the first time you open it, right-click it and choose *Open*.
+
+### Any computer with Python 3.9+ (pip)
 ```bash
-python3 token_tracker.py                    # latest session + list of the 10 most recent
-python3 token_tracker.py --all              # every session, one row each, plus a grand total
-python3 token_tracker.py -s latest          # expanded view: tokens per prompt in that session
-python3 token_tracker.py -s d3da6ab5 --calls  # ...plus every single API call
-python3 token_tracker.py --html report.html # expandable HTML report (click a session to open it)
-python3 token_tracker.py --json             # JSON for your own scripts
+pip install claude_token_tracker-1.0.0-py3-none-any.whl   # or: pip install .
+claude-tokens-gui     # opens the app
+claude-tokens         # command-line version
+pip uninstall claude-token-tracker
 ```
 
-For `-s` you can pass the start of a session ID, its number in the list (`-s 3`), or `latest`.
+## Command line
 
-Other options: `-n 20` (how many recent sessions to show), `-p myproject` (only sessions from one project),
-`--dir PATH` (scan a different `projects` folder). If `CLAUDE_CONFIG_DIR` is set, the script scans it too.
+```bash
+claude-tokens                     # latest session + the 10 most recent
+claude-tokens --stats             # totals per engine, AI app and project
+claude-tokens --all               # every session
+claude-tokens -s latest --calls   # one session: per prompt, plus every API call
+claude-tokens --json              # JSON for your own scripts
+claude-tokens --html report.html  # static HTML report
+```
+
+Other options: `-n 20` (how many recent sessions), `-p myproject` (one project only), `--dir PATH` (another `projects` folder).
+If `CLAUDE_CONFIG_DIR` is set, that folder is scanned too.
 
 ## What the numbers mean
 
@@ -33,5 +70,13 @@ Other options: `-n 20` (how many recent sessions to show), `-p myproject` (only 
 
 Cache reads are usually the largest number because the whole conversation is re-read on every call.
 They are also the cheapest kind of token, so for cost, **Output** and **Input + Cache write** tell you more.
+Sub-agent transcripts are counted in their parent session.
 
-Sub-agent (Task/Agent) transcripts are counted in their parent session and shown as `[sub-agent]` rows.
+**Limits:** only Claude Code (terminal, IDE, desktop, web and Agent SDK) writes these transcripts.
+Chats on claude.ai or in the Claude mobile app, and other AI tools, aren't included.
+
+## Building the apps yourself
+
+In GitHub, open **Actions → Build apps → Run workflow**, or push a tag such as `v1.0.0` to publish a Release.
+That builds the Windows installer and portable `.exe`, the macOS app, the Linux binary and the Python wheel.
+Locally: `pip install pyinstaller . && pyinstaller --onefile --windowed --name ClaudeTokenTracker packaging/app.py`.

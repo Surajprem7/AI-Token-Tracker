@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "claude-token-tracker"
+dynamic = ["version"]
+description = "See how many tokens each Claude Code session spent (reads local transcripts, no API key)."
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+license = { text = "MIT" }
+
+[project.scripts]
+claude-tokens = "claude_token_tracker.cli:main"
+
+[project.gui-scripts]
+claude-tokens-gui = "claude_token_tracker.gui:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "claude_token_tracker.__version__" }
