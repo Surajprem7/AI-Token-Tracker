@@ -1,8 +1,14 @@
 name: Build apps
 
-# Run manually from the Actions tab, or push a tag like v2.1.0 to publish a release.
+# Run manually from the Actions tab (tick "Publish a release" to publish the current
+# version), or push a tag like v2.3.0. Installed apps update to the newest release.
 on:
   workflow_dispatch:
+    inputs:
+      release:
+        description: "Publish a release (tag v<version from __init__.py>)"
+        type: boolean
+        default: false
   push:
     tags: ["v*"]
 
@@ -11,6 +17,8 @@ permissions:
 
 jobs:
   build:
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     strategy:
       fail-fast: false
       matrix:
@@ -23,6 +31,10 @@ jobs:
           python-version: "3.12"
       - name: Tests
         run: python -m unittest discover -s tests
+      - name: Version
+        id: version
+        shell: bash
+        run: echo "version=$(PYTHONPATH=src python -c 'import ai_token_tracker as a; print(a.__version__)')" >> "$GITHUB_OUTPUT"
       - name: Install build tools
         # Pinned: a new PyInstaller major version must not change the apps without us noticing.
         run: python -m pip install "pyinstaller==6.22.3" build certifi
@@ -77,7 +89,7 @@ jobs:
           path: out/*
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.release
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -89,7 +101,10 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
-          name: AI Token Tracker ${{ github.ref_name }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', needs.build.outputs.version) }}
+          target_commitish: ${{ github.sha }}
+          name: AI Token Tracker ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', needs.build.outputs.version) }}
+          make_latest: true
           generate_release_notes: true
           body: |
             **Download**

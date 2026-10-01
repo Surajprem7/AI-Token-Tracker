@@ -163,7 +163,7 @@ When a newer version exists, it shows a bar at the top and, by default, installs
 
 Every download is checked against the SHA-256 checksum GitHub publishes for it.
 You can turn off automatic installing, or checking altogether, on the **Sources** page under **Updates**.
-To ship an update to everyone, bump `__version__` and push a tag such as `v2.4.0`. The build workflow publishes the release, and installed apps pick it up.
+To ship an update to everyone, bump `__version__` in `src/ai_token_tracker/__init__.py`. Then open **Actions → Build apps → Run workflow**, tick **Publish a release**, and run it (or push a tag such as `v2.4.0`). The workflow builds and publishes the release, and installed apps pick it up.
 
 ## Privacy and security
 
