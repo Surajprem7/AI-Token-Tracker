@@ -718,8 +718,8 @@ async function checkUpdates(force) {
   const u = updates.status;
   if (force && !u.available && !u.error) toast(`You have the latest version (${u.current}).`);
   if (force && u.error) toast(u.error);
-  // Automatic updates: install once per session, as soon as a newer version is seen.
-  if (u.available && u.can_install && u.settings.auto_install && !updates.installing && !updates.autoTried) {
+  // Updates install automatically, once per session, as soon as a newer version is seen.
+  if (u.available && u.can_install && !updates.installing && !updates.autoTried) {
     updates.autoTried = true;
     installUpdate();
   }
@@ -732,7 +732,7 @@ function renderUpdate() {
   if (updates.installing) {
     bar.hidden = false;
     bar.innerHTML = `<span class="grow">${esc(updates.installing)}</span>`;
-  } else if (u.available && u.settings.check_updates) {
+  } else if (u.available) {
     const page = safeLink(u.latest.page);
     bar.hidden = false;
     bar.innerHTML = `<span class="grow"><b>AI Token Tracker ${esc(u.latest.version)}</b> is available. You have ${esc(u.current)}.</span>
@@ -748,11 +748,8 @@ function renderUpdate() {
     pip: "installs itself with pip", manual: "download new versions by hand (portable, Linux or source copy)" }[u.method] || "";
   $("updateInfo").innerHTML = `<dl class="kv">
     <dt>This version</dt><dd>${esc(u.current)}</dd>
-    <dt>Latest</dt><dd>${u.latest ? esc(u.latest.version) : u.settings.check_updates ? "not checked yet" : "checking is off"}</dd>
+    <dt>Latest</dt><dd>${u.latest ? esc(u.latest.version) : u.error ? "couldn't check (offline?)" : "not checked yet"}</dd>
     <dt>Updates</dt><dd>${esc(how)}</dd></dl>`;
-  $("setCheck").checked = u.settings.check_updates;
-  $("setAuto").checked = u.settings.auto_install;
-  $("setAuto").disabled = !u.settings.check_updates;
 }
 
 async function installUpdate() {
@@ -769,19 +766,6 @@ async function installUpdate() {
     toast("Update didn't install: " + err.message);
   }
   renderUpdate();
-}
-
-async function saveSetting(name, value) {
-  try {
-    const res = await fetch("/api/settings", { method: "POST", headers: { "X-Token": TOKEN, "Content-Type": "application/json" },
-      body: JSON.stringify({ [name]: value }) });
-    if (!res.ok) throw new Error(res.statusText);
-    if (updates.status) updates.status.settings = await res.json();
-  } catch (err) {
-    toast("Couldn't save the setting: " + err.message);
-  }
-  renderUpdate();
-  if (name === "check_updates" && value) checkUpdates(false);
 }
 
 /* ---------------------------------------------------------------- wiring */
@@ -859,8 +843,6 @@ function init() {
   setInterval(updateStamp, 30000);
   // Tells the local server the dashboard is still open (it quits when every tab is closed).
   setInterval(() => fetch("/api/ping", { headers: { "X-Token": TOKEN } }).catch(() => {}), 45000);
-  $("setCheck").onchange = (e) => saveSetting("check_updates", e.target.checked);
-  $("setAuto").onchange = (e) => saveSetting("auto_install", e.target.checked);
   $("checkNow").onclick = () => checkUpdates(true);
   load(false).then(() => checkUpdates(false));
   setInterval(() => checkUpdates(false), 3 * 3600 * 1000);  // the server itself asks GitHub at most every 6 hours

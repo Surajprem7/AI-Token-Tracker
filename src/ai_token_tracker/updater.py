@@ -10,8 +10,9 @@ install it:
 * pip install: upgrades from the release's wheel with pip, then restarts.
 * Portable .exe and the Linux single-file app: shows where to download it.
 
-Updates install automatically by default (so everyone gets fixes without having
-to look for them); both the check and the automatic install can be switched off.
+It checks every time the app opens (and every 6 hours while it stays open), and
+always installs updates automatically, so everyone gets fixes without having to
+look for them.
 
 Downloads are checked against the SHA-256 digest GitHub publishes for each file.
 """
@@ -39,53 +40,37 @@ RELEASES_PAGE = f"https://github.com/{REPO}/releases/latest"
 CHECK_EVERY_SECONDS = 6 * 3600
 WINDOWS_ASSET = "AITokenTracker-Setup.exe"
 MAC_ASSET = "AITokenTracker-macOS-AppleSilicon.zip"
-DEFAULT_SETTINGS = {"check_updates": True, "auto_install": True}
 
 
 # --------------------------------------------------------------------------- #
-# Settings (~/.ai-token-tracker/settings.json)
+# Last answer from GitHub (~/.ai-token-tracker/update-cache.json)
 # --------------------------------------------------------------------------- #
+
+_checked_since_launch = False  # every launch asks GitHub once, whatever the cache says
 
 
 def _home() -> Path:
     return Path(os.environ.get("AI_TOKEN_TRACKER_DIR") or Path.home() / ".ai-token-tracker").expanduser()
 
 
-def settings_file() -> Path:
-    return _home() / "settings.json"
+def cache_file() -> Path:
+    return _home() / "update-cache.json"
 
 
-def load_settings() -> dict:
+def _load_cache() -> dict:
     try:
-        data = json.loads(settings_file().read_text(encoding="utf-8"))
+        data = json.loads(cache_file().read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
     except (OSError, ValueError):
-        data = {}
-    out = dict(DEFAULT_SETTINGS)
-    if isinstance(data, dict):
-        out.update({k: v for k, v in data.items() if k in DEFAULT_SETTINGS and isinstance(v, bool)})
-        out["_cache"] = data.get("_cache") if isinstance(data.get("_cache"), dict) else {}
-    return out
+        return {}
 
 
-def save_settings(settings: dict) -> None:
-    path = settings_file()
+def _save_cache(data: dict) -> None:
+    path = cache_file()
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+    tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
     tmp.replace(path)
-
-
-def update_settings(**changes) -> dict:
-    s = load_settings()
-    for k, v in changes.items():
-        if k in DEFAULT_SETTINGS and isinstance(v, bool):
-            s[k] = v
-    save_settings(s)
-    return public_settings(s)
-
-
-def public_settings(s: dict) -> dict:
-    return {k: s[k] for k in DEFAULT_SETTINGS}
 
 
 # --------------------------------------------------------------------------- #
@@ -156,19 +141,21 @@ def manual_instructions() -> str:
 
 
 def check(force: bool = False) -> dict:
-    """Latest-version status for the dashboard. Uses a 6-hour cache unless forced."""
-    s = load_settings()
-    status = {"current": __version__, "settings": public_settings(s), "method": install_method(),
-              "manual": manual_instructions(), "available": False, "latest": None, "error": None}
-    if not s["check_updates"] and not force:
-        return status
-    cache = s.get("_cache") or {}
-    fresh = time.time() - float(cache.get("checked_at") or 0) < CHECK_EVERY_SECONDS
-    if force or not fresh or not cache.get("release"):
+    """Latest-version status for the dashboard.
+
+    Asks GitHub on the first call after each launch, then at most every 6 hours
+    while the app stays open (or whenever forced).
+    """
+    global _checked_since_launch
+    status = {"current": __version__, "method": install_method(), "manual": manual_instructions(),
+              "available": False, "latest": None, "error": None, "can_install": False}
+    cache = _load_cache()
+    stale = time.time() - float(cache.get("checked_at") or 0) >= CHECK_EVERY_SECONDS
+    if force or not _checked_since_launch or stale or not cache.get("release"):
+        _checked_since_launch = True
         try:
             release = _release_info(_fetch_json(LATEST_API))
-            s["_cache"] = {"checked_at": time.time(), "release": release}
-            save_settings(s)
+            _save_cache({"checked_at": time.time(), "release": release})
         except Exception as exc:  # offline, rate-limited, no releases yet...
             status["error"] = f"Couldn't check for updates: {exc}"
             release = cache.get("release")
@@ -218,7 +205,7 @@ def install(release: dict | None = None) -> str:
     """
     method = install_method()
     if release is None:
-        release = (load_settings().get("_cache") or {}).get("release") or _release_info(_fetch_json(LATEST_API))
+        release = _load_cache().get("release") or _release_info(_fetch_json(LATEST_API))
     if not is_newer(release.get("version", "")):
         return "You already have the latest version."
     asset = _asset_for(method, release)

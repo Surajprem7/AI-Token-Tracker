@@ -112,6 +112,6 @@ jobs:
             - **Mac (M1 or later):** `AITokenTracker-macOS-AppleSilicon.zip`. Unzip, move the app to Applications, then right-click → Open the first time.
             - **Any computer with Python:** `pip install "ai_token_tracker-<version>-py3-none-any.whl[app]"`, then `ai-tokens-gui`.
 
-            Installed copies update themselves to new releases automatically (switch this off under Sources → Updates).
+            Installed copies check for a new release every time they open and update themselves automatically.
             Windows may say "Windows protected your PC" because the app isn't code-signed: click More info → Run anyway.
           files: out/*

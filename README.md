@@ -154,21 +154,20 @@ They are also the cheapest kind of token, so for cost, **Output** and **Input + 
 
 ## Updates
 
-Installed copies keep themselves up to date. The app asks GitHub for the latest release when it starts and every few hours afterwards.
-When a newer version exists, it shows a bar at the top and, by default, installs it automatically:
-- **Windows** (installed with `AITokenTracker-Setup.exe`): runs the new installer silently, then restarts.
+Installed copies keep themselves up to date. Every time the app opens (and every 6 hours while it stays open), it asks GitHub for the latest release.
+When a newer version exists, it installs it automatically and restarts:
+- **Windows** (installed with `AITokenTracker-Setup.exe`): runs the new installer silently.
 - **Mac app**: swaps in the new app and reopens it.
-- **pip installs**: upgrades with pip, then restarts.
-- **Portable `.exe` and the Linux app**: show a download link instead.
+- **pip installs**: upgrades with pip.
+- **Portable `.exe` and the Linux app**: show a bar with a download link instead.
 
-Every download is checked against the SHA-256 checksum GitHub publishes for it.
-You can turn off automatic installing, or checking altogether, on the **Sources** page under **Updates**.
+Every download is checked against the SHA-256 checksum GitHub publishes for it. The check fetches only the latest version number; nothing about your usage is sent.
 To ship an update to everyone, bump `__version__` in `src/ai_token_tracker/__init__.py`. Then open **Actions → Build apps → Run workflow**, tick **Publish a release**, and run it (or push a tag such as `v2.4.0`). The workflow builds and publishes the release, and installed apps pick it up.
 
 ## Privacy and security
 
 - The tracker only **reads** log files. It never changes them, and it has no account, telemetry or cloud sync.
-- Its only network requests: the update check to GitHub (the latest version number; nothing about your usage) and, when you ask, the price-list download.
+- Its only network requests: the update check to GitHub each time the app opens (the latest version number; nothing about your usage) and, when you ask, the price-list download.
 - The dashboard is served on `127.0.0.1` only. Each launch gets a random access token, and requests from other websites are refused.
 - Prompt text appears only in your own dashboard, clipped to a short preview.
 

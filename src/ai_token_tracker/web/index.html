@@ -137,10 +137,9 @@
       <article class="card span-7">
         <div class="card-head"><h2>Updates</h2></div>
         <div id="updateInfo"></div>
-        <label class="switch"><input type="checkbox" id="setCheck"> Check for new versions</label>
-        <label class="switch"><input type="checkbox" id="setAuto"> Install updates automatically</label>
         <button class="btn" id="checkNow">Check now</button>
-        <p class="note">Checking asks GitHub for the latest version number. Nothing about your usage is sent.</p>
+        <p class="note">The app checks GitHub for a new version every time it opens and installs it automatically.
+          Only the latest version number is fetched; nothing about your usage is sent.</p>
       </article>
       <article class="card span-5">
         <div class="card-head"><h2>Track any other AI</h2></div>
@@ -153,7 +152,7 @@ log_usage("My app", r.model, r.usage.input_tokens, r.usage.output_tokens)</code>
       <article class="card span-5">
         <div class="card-head"><h2>Privacy</h2></div>
         <p>Everything stays on this computer. The tracker only reads the log files your AI tools already write, and this page is served from your own machine.</p>
-        <p class="muted small">It connects to the internet only to check GitHub for app updates (switch that off under Updates) and, when you click it, to download the latest prices.</p>
+        <p class="muted small">It connects to the internet only to check GitHub for app updates and, when you click it, to download the latest prices.</p>
       </article>
     </div>
   </section>

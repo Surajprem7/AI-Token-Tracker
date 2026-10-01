@@ -155,15 +155,6 @@ def make_handler(app: Dashboard, port_ref: list):
             url = urlparse(self.path)
             if not self._api_allowed(parse_qs(url.query)):
                 return self._send(403, b'{"error":"bad token"}')
-            if url.path == "/api/settings":
-                try:
-                    length = min(int(self.headers.get("Content-Length") or 0), 10_000)
-                    changes = json.loads(self.rfile.read(length) or b"{}")
-                    if not isinstance(changes, dict):
-                        raise ValueError("expected an object")
-                except ValueError as exc:
-                    return self._send(400, json.dumps({"error": str(exc)}).encode())
-                return self._send(200, json.dumps(updater.update_settings(**changes)).encode())
             if url.path == "/api/update/install":
                 try:
                     message = updater.install()
