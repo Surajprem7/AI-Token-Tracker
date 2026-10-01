@@ -21,6 +21,9 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayName=AI Token Tracker
+; Close a running copy before replacing it (used by the in-app updater too).
+CloseApplications=yes
+RestartApplications=no
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"
@@ -36,3 +39,5 @@ Name: "{userdesktop}\AI Token Tracker"; Filename: "{app}\AITokenTracker.exe"; Ta
 
 [Run]
 Filename: "{app}\AITokenTracker.exe"; Description: "Open AI Token Tracker now"; Flags: nowait postinstall skipifsilent
+; After an automatic (silent) update, start the app again.
+Filename: "{app}\AITokenTracker.exe"; Flags: nowait; Check: WizardSilent

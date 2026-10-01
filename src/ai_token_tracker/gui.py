@@ -12,6 +12,7 @@ import html
 import os
 import sys
 import tempfile
+import threading
 import time
 import webbrowser
 from pathlib import Path
@@ -36,7 +37,13 @@ def main(argv: list[str] | None = None) -> int:
     if webview is not None:
         try:
             webview.settings["ALLOW_DOWNLOADS"] = True  # "Export CSV"
-            webview.create_window("AI Token Tracker", url, width=1320, height=900, min_size=(420, 560))
+            window = webview.create_window("AI Token Tracker", url, width=1320, height=900, min_size=(420, 560))
+
+            def close_for_update():
+                app.exit_event.wait()
+                window.destroy()  # an update is being installed; it restarts the app
+
+            threading.Thread(target=close_for_update, daemon=True).start()
             # Not private mode, and a fixed storage folder: the dashboard remembers your
             # period, theme and hidden tools between launches.
             storage = app_data_dir() / "webview"
@@ -74,7 +81,8 @@ def serve_in_browser(httpd, app, url: str, open_browser: bool, idle_exit: bool) 
         webbrowser.open(launcher.as_uri())
     try:
         while True:
-            time.sleep(5)
+            if app.exit_event.wait(5):
+                break  # an update is being installed
             if launcher is not None and app.last_ping > opened_at:
                 launcher.unlink(missing_ok=True)  # the dashboard has loaded; the file isn't needed any more
                 launcher = None

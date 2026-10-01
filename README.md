@@ -76,7 +76,7 @@ Every API call gets an estimated cost at pay-as-you-go **API list prices**, incl
 Claude's 1-hour cache writes cost more, and the tracker prices them separately.
 - A price list for about 300 models is bundled, so costs work offline.
 - `ai-tokens --update-prices` (or the button on the Sources page) downloads the latest public price list from
-  [LiteLLM](https://github.com/BerriAI/litellm). This is the only network request the tracker ever makes, and only when you ask for it.
+  [LiteLLM](https://github.com/BerriAI/litellm). It only downloads when you ask (the other network request is the update check, see Updates).
 - You can set your own prices in `~/.ai-token-tracker/prices.json` (USD per 1M tokens):
   `{"my-model": {"input": 1.0, "output": 4.0, "cache_read": 0.1, "cache_write": 1.25}}`
 - Models without a known price are counted as tokens and flagged as unpriced, never guessed.
@@ -106,7 +106,7 @@ This is the quickest way to try it before the installers are built.
 1. Install Python from [python.org](https://www.python.org/downloads/). Keep the "py launcher" option ticked.
 2. Open **PowerShell** in the folder where you saved the `.whl` file and run:
    ```powershell
-   py -m pip install --user "ai_token_tracker-2.2.0-py3-none-any.whl[app]"
+   py -m pip install --user "ai_token_tracker-2.3.0-py3-none-any.whl[app]"
    py -m ai_token_tracker            # opens the dashboard window
    py -m ai_token_tracker --stats    # command-line summary
    ```
@@ -114,7 +114,7 @@ This is the quickest way to try it before the installers are built.
 
 **macOS**
 ```bash
-python3 -m pip install --user "ai_token_tracker-2.2.0-py3-none-any.whl[app]"
+python3 -m pip install --user "ai_token_tracker-2.3.0-py3-none-any.whl[app]"
 python3 -m ai_token_tracker            # opens the dashboard window
 ```
 If macOS doesn't have Python yet, `python3` offers to install the Command Line Tools, or you can use [python.org](https://www.python.org/downloads/).
@@ -152,9 +152,23 @@ The tracker converts everything to the four columns above, so numbers from diffe
 Cache reads are usually the largest number because the whole conversation is re-read on every call.
 They are also the cheapest kind of token, so for cost, **Output** and **Input + Cache write** tell you more.
 
+## Updates
+
+Installed copies keep themselves up to date. The app asks GitHub for the latest release when it starts and every few hours afterwards.
+When a newer version exists, it shows a bar at the top and, by default, installs it automatically:
+- **Windows** (installed with `AITokenTracker-Setup.exe`): runs the new installer silently, then restarts.
+- **Mac app**: swaps in the new app and reopens it.
+- **pip installs**: upgrades with pip, then restarts.
+- **Portable `.exe` and the Linux app**: show a download link instead.
+
+Every download is checked against the SHA-256 checksum GitHub publishes for it.
+You can turn off automatic installing, or checking altogether, on the **Sources** page under **Updates**.
+To ship an update to everyone, bump `__version__` and push a tag such as `v2.4.0`. The build workflow publishes the release, and installed apps pick it up.
+
 ## Privacy and security
 
 - The tracker only **reads** log files. It never changes them, and it has no account, telemetry or cloud sync.
+- Its only network requests: the update check to GitHub (the latest version number; nothing about your usage) and, when you ask, the price-list download.
 - The dashboard is served on `127.0.0.1` only. Each launch gets a random access token, and requests from other websites are refused.
 - Prompt text appears only in your own dashboard, clipped to a short preview.
 
@@ -171,5 +185,5 @@ python -m unittest discover -s tests   # reader tests for every AI tool
   No code or assets were copied. Everything here was written from scratch.
 - Model prices come from [LiteLLM](https://github.com/BerriAI/litellm)'s public price list (MIT).
 
-To build the apps, open **Actions → Build apps → Run workflow** in GitHub, or push a tag such as `v2.2.0` to publish a Release.
+To build the apps, open **Actions → Build apps → Run workflow** in GitHub, or push a tag such as `v2.3.0` to publish a Release.
 That builds the Windows installer and portable `.exe`, the macOS app, the Linux binary and the Python wheel.

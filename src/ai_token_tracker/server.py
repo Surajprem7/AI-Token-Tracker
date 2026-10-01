@@ -17,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import __version__, pricing
+from . import __version__, pricing, updater
 from .core import Session, default_roots, load_sessions
 from .sources import data_signature, source_status
 
@@ -82,6 +82,7 @@ class Dashboard:
         self.payload: bytes = b""
         self.signature = None
         self.last_ping = time.monotonic()
+        self.exit_event = threading.Event()  # set when an update needs the app to quit
 
     def data(self, force: bool = False) -> bytes:
         """The dashboard JSON; logs are re-read only when a log file changed (or when forced)."""
@@ -136,6 +137,8 @@ def make_handler(app: Dashboard, port_ref: list):
                         return self._send(200, app.data(force="refresh" in query))
                     except Exception as exc:  # report instead of a blank page
                         return self._send(500, json.dumps({"error": str(exc)}).encode())
+                if url.path == "/api/update":
+                    return self._send(200, json.dumps(updater.check(force="force" in query)).encode())
                 if url.path == "/api/ping":
                     return self._send(200, b'{"ok":true}')
                 return self._send(404, b'{"error":"not found"}')
@@ -152,6 +155,24 @@ def make_handler(app: Dashboard, port_ref: list):
             url = urlparse(self.path)
             if not self._api_allowed(parse_qs(url.query)):
                 return self._send(403, b'{"error":"bad token"}')
+            if url.path == "/api/settings":
+                try:
+                    length = min(int(self.headers.get("Content-Length") or 0), 10_000)
+                    changes = json.loads(self.rfile.read(length) or b"{}")
+                    if not isinstance(changes, dict):
+                        raise ValueError("expected an object")
+                except ValueError as exc:
+                    return self._send(400, json.dumps({"error": str(exc)}).encode())
+                return self._send(200, json.dumps(updater.update_settings(**changes)).encode())
+            if url.path == "/api/update/install":
+                try:
+                    message = updater.install()
+                except Exception as exc:
+                    return self._send(500, json.dumps({"error": str(exc)}).encode())
+                if "latest version" not in message:
+                    # Let this reply reach the page, then quit so the update can replace the app.
+                    threading.Timer(1.5, app.exit_event.set).start()
+                return self._send(200, json.dumps({"message": message}).encode())
             if url.path == "/api/update-prices":
                 try:
                     n = pricing.update_prices()

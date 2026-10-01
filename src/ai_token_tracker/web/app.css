@@ -237,6 +237,22 @@ details[open] > summary .caret { transform: rotate(90deg); }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; overflow-wrap: anywhere; }
 
+/* ---- update bar & switches ---- */
+.update-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  max-width: 1360px; margin: 12px auto 0; padding: 10px 16px; border-radius: 10px;
+  background: var(--surface); border: 1px solid var(--accent); color: var(--ink);
+}
+.update-bar .grow { flex: 1; min-width: 200px; }
+.update-bar .btn { margin-top: 0; }
+.update-bar a { color: var(--accent); }
+.update-bar a.btn, a.btn { color: var(--accent-ink); text-decoration: none; display: inline-block; }
+@media (min-width: 641px) { .update-bar { width: calc(100% - 48px); } }
+@media (max-width: 640px) { .update-bar { margin: 12px 16px 0; } }
+.switch { display: flex; align-items: center; gap: 8px; margin: 8px 0; cursor: pointer; }
+.switch input { width: 16px; height: 16px; accent-color: var(--accent); }
+#checkNow { margin-top: 6px; }
+
 /* ---- tooltip & toast ---- */
 .tooltip {
   position: fixed; z-index: 20; pointer-events: none; max-width: 300px;

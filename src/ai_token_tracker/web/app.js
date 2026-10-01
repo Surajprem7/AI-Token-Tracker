@@ -699,6 +699,91 @@ function renderSources() {
     + "Updating downloads LiteLLM's public price list. Nothing about your usage is sent.";
 }
 
+/* ---------------------------------------------------------------- updates */
+
+const updates = { status: null, installing: false, autoTried: false };
+
+function safeLink(url) {
+  return /^https:\/\/github\.com\//.test(url || "") ? url : "https://github.com/";
+}
+
+async function checkUpdates(force) {
+  try {
+    const res = await fetch("/api/update" + (force ? "?force=1" : ""), { headers: { "X-Token": TOKEN } });
+    updates.status = await res.json();
+  } catch {
+    return;  // offline: try again later
+  }
+  renderUpdate();
+  const u = updates.status;
+  if (force && !u.available && !u.error) toast(`You have the latest version (${u.current}).`);
+  if (force && u.error) toast(u.error);
+  // Automatic updates: install once per session, as soon as a newer version is seen.
+  if (u.available && u.can_install && u.settings.auto_install && !updates.installing && !updates.autoTried) {
+    updates.autoTried = true;
+    installUpdate();
+  }
+}
+
+function renderUpdate() {
+  const u = updates.status;
+  if (!u) return;
+  const bar = $("updateBar");
+  if (updates.installing) {
+    bar.hidden = false;
+    bar.innerHTML = `<span class="grow">${esc(updates.installing)}</span>`;
+  } else if (u.available && u.settings.check_updates) {
+    const page = safeLink(u.latest.page);
+    bar.hidden = false;
+    bar.innerHTML = `<span class="grow"><b>AI Token Tracker ${esc(u.latest.version)}</b> is available. You have ${esc(u.current)}.</span>
+      <a href="${esc(page)}" target="_blank" rel="noopener">What's new</a>
+      ${u.can_install ? `<button class="btn" id="installUpdate">Update now</button>`
+                      : `<a class="btn" href="${esc(page)}" target="_blank" rel="noopener">Download</a>`}`;
+    const btn = $("installUpdate");
+    if (btn) btn.onclick = () => installUpdate();
+  } else {
+    bar.hidden = true;
+  }
+  const how = { "windows-installer": "installs itself (Windows installer)", "mac-app": "installs itself (Mac app)",
+    pip: "installs itself with pip", manual: "download new versions by hand (portable, Linux or source copy)" }[u.method] || "";
+  $("updateInfo").innerHTML = `<dl class="kv">
+    <dt>This version</dt><dd>${esc(u.current)}</dd>
+    <dt>Latest</dt><dd>${u.latest ? esc(u.latest.version) : u.settings.check_updates ? "not checked yet" : "checking is off"}</dd>
+    <dt>Updates</dt><dd>${esc(how)}</dd></dl>`;
+  $("setCheck").checked = u.settings.check_updates;
+  $("setAuto").checked = u.settings.auto_install;
+  $("setAuto").disabled = !u.settings.check_updates;
+}
+
+async function installUpdate() {
+  const u = updates.status;
+  updates.installing = `Updating to ${u.latest.version}… The app will restart by itself.`;
+  renderUpdate();
+  try {
+    const res = await fetch("/api/update/install", { method: "POST", headers: { "X-Token": TOKEN } });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || res.statusText);
+    updates.installing = body.message;
+  } catch (err) {
+    updates.installing = false;
+    toast("Update didn't install: " + err.message);
+  }
+  renderUpdate();
+}
+
+async function saveSetting(name, value) {
+  try {
+    const res = await fetch("/api/settings", { method: "POST", headers: { "X-Token": TOKEN, "Content-Type": "application/json" },
+      body: JSON.stringify({ [name]: value }) });
+    if (!res.ok) throw new Error(res.statusText);
+    if (updates.status) updates.status.settings = await res.json();
+  } catch (err) {
+    toast("Couldn't save the setting: " + err.message);
+  }
+  renderUpdate();
+  if (name === "check_updates" && value) checkUpdates(false);
+}
+
 /* ---------------------------------------------------------------- wiring */
 
 function applyTheme() {
@@ -774,7 +859,11 @@ function init() {
   setInterval(updateStamp, 30000);
   // Tells the local server the dashboard is still open (it quits when every tab is closed).
   setInterval(() => fetch("/api/ping", { headers: { "X-Token": TOKEN } }).catch(() => {}), 45000);
-  load(false);
+  $("setCheck").onchange = (e) => saveSetting("check_updates", e.target.checked);
+  $("setAuto").onchange = (e) => saveSetting("auto_install", e.target.checked);
+  $("checkNow").onclick = () => checkUpdates(true);
+  load(false).then(() => checkUpdates(false));
+  setInterval(() => checkUpdates(false), 3 * 3600 * 1000);  // the server itself asks GitHub at most every 6 hours
 }
 
 init();

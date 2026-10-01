@@ -89,4 +89,14 @@ jobs:
           merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
+          name: AI Token Tracker ${{ github.ref_name }}
+          generate_release_notes: true
+          body: |
+            **Download**
+            - **Windows:** `AITokenTracker-Setup.exe` (installs for your user, no admin needed). Portable: `AITokenTracker.exe`.
+            - **Mac (M1 or later):** `AITokenTracker-macOS-AppleSilicon.zip`. Unzip, move the app to Applications, then right-click → Open the first time.
+            - **Any computer with Python:** `pip install "ai_token_tracker-<version>-py3-none-any.whl[app]"`, then `ai-tokens-gui`.
+
+            Installed copies update themselves to new releases automatically (switch this off under Sources → Updates).
+            Windows may say "Windows protected your PC" because the app isn't code-signed: click More info → Run anyway.
           files: out/*
