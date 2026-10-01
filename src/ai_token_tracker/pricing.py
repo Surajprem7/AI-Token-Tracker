@@ -191,14 +191,18 @@ def trim(litellm: dict) -> dict:
 
 
 def _ssl_context() -> ssl.SSLContext:
-    """HTTPS certificates: the bundled certifi list when available (the standalone apps ship it,
-    because a frozen Python can't find the system's certificates on macOS and some Linux systems)."""
-    try:
-        import certifi
+    """HTTPS certificates: the computer's own certificate store first (so company networks
+    that inspect HTTPS keep working), and the bundled certifi list only when that store is
+    empty, as it is for a frozen app on macOS and some Linux systems."""
+    ctx = ssl.create_default_context()
+    if ctx.cert_store_stats().get("x509_ca", 0) == 0:
+        try:
+            import certifi
 
-        return ssl.create_default_context(cafile=certifi.where())
-    except (ImportError, OSError):
-        return ssl.create_default_context()
+            ctx = ssl.create_default_context(cafile=certifi.where())
+        except (ImportError, OSError):
+            pass
+    return ctx
 
 
 def update_prices(timeout: float = 30) -> int:
