@@ -155,7 +155,7 @@ def check(force: bool = False) -> dict:
         _checked_since_launch = True
         try:
             release = _release_info(_fetch_json(LATEST_API))
-            _save_cache({"checked_at": time.time(), "release": release})
+            _save_cache({**cache, "checked_at": time.time(), "release": release})
         except Exception as exc:  # offline, rate-limited, no releases yet...
             status["error"] = f"Couldn't check for updates: {exc}"
             release = cache.get("release")
@@ -165,6 +165,12 @@ def check(force: bool = False) -> dict:
         status["latest"] = {k: release[k] for k in ("version", "notes", "page")}
         status["available"] = is_newer(release["version"])
         status["can_install"] = status["available"] and _asset_for(status["method"], release) is not None
+        # Install by itself, unless this same update already failed twice today (then wait for a click),
+        # so a failing installer can never close the app on every start.
+        tries = cache.get("attempts") if isinstance(cache.get("attempts"), dict) else {}
+        recent = tries.get(release["version"]) if isinstance(tries.get(release["version"]), dict) else {}
+        failed_today = recent.get("count", 0) >= 2 and time.time() - recent.get("at", 0) < 86400
+        status["auto"] = status["can_install"] and not failed_today
     return status
 
 
@@ -197,6 +203,17 @@ def _download(asset: dict, dest: Path) -> None:
         raise ValueError("the download is incomplete; not installing it")
 
 
+def _note_attempt(version: str) -> None:
+    """Count install attempts per version (if we're still on the old one later, it failed)."""
+    cache = _load_cache()
+    tries = cache.get("attempts") if isinstance(cache.get("attempts"), dict) else {}
+    prev = tries.get(version) if isinstance(tries.get(version), dict) else {}
+    fresh = time.time() - prev.get("at", 0) < 86400
+    tries = {version: {"count": (prev.get("count", 0) if fresh else 0) + 1, "at": time.time()}}
+    cache["attempts"] = tries
+    _save_cache(cache)
+
+
 def install(release: dict | None = None) -> str:
     """Download and start installing the latest version.
 
@@ -211,13 +228,14 @@ def install(release: dict | None = None) -> str:
     asset = _asset_for(method, release)
     if asset is None:
         raise RuntimeError(manual_instructions())
+    _note_attempt(release["version"])
     work = Path(tempfile.mkdtemp(prefix="ai-token-tracker-update-"))
     if method == "windows-installer":
         setup = work / WINDOWS_ASSET
         _download(asset, setup)
         flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-        # /SILENT shows only a progress bar; the installer restarts the app when done.
-        subprocess.Popen([str(setup), "/SILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"],
+        # /VERYSILENT shows no window; the installer waits for this app to quit, then restarts it.
+        subprocess.Popen([str(setup), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"],
                          creationflags=flags, close_fds=True)
         return f"Installing version {release['version']}. The app will restart in a moment."
     if method == "mac-app":

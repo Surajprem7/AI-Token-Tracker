@@ -22,7 +22,7 @@ SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayName=AI Token Tracker
 ; Close a running copy before replacing it (used by the in-app updater too).
-CloseApplications=yes
+CloseApplications=force
 RestartApplications=no
 
 [Tasks]
@@ -41,3 +41,44 @@ Name: "{userdesktop}\AI Token Tracker"; Filename: "{app}\AITokenTracker.exe"; Ta
 Filename: "{app}\AITokenTracker.exe"; Description: "Open AI Token Tracker now"; Flags: nowait postinstall skipifsilent
 ; After an automatic (silent) update, start the app again.
 Filename: "{app}\AITokenTracker.exe"; Flags: nowait; Check: WizardSilent
+
+[Code]
+{ The in-app updater starts this installer and then quits the app. Wait for it to be gone
+  (and close it if it doesn't quit), so its files can be replaced instead of rolling back. }
+function AppIsRunning(): Boolean;
+var
+  Code: Integer;
+begin
+  Exec(ExpandConstant('{cmd}'), '/C tasklist /FI "IMAGENAME eq AITokenTracker.exe" /NH | find /I "AITokenTracker.exe" >NUL',
+       '', SW_HIDE, ewWaitUntilTerminated, Code);
+  Result := (Code = 0);
+end;
+
+procedure CloseRunningApp();
+var
+  I, Code: Integer;
+begin
+  I := 0;
+  while AppIsRunning() and (I < 40) do
+  begin
+    Sleep(500);
+    I := I + 1;
+  end;
+  if AppIsRunning() then
+  begin
+    Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM AITokenTracker.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
+    Sleep(1500);
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  CloseRunningApp();
+  Result := '';
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  CloseRunningApp();
+  Result := True;
+end;

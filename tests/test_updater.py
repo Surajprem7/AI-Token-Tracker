@@ -62,6 +62,27 @@ class CheckTests(Base):
             status = updater.check(force=True)
         self.assertIn("no network", status["error"])
 
+    def test_failed_update_is_not_retried_on_every_start(self):
+        rel = fake_release(assets=[updater.WINDOWS_ASSET])
+        with mock.patch.object(updater, "_fetch_json", return_value=rel), \
+                mock.patch.object(updater, "install_method", return_value="windows-installer"):
+            self.assertTrue(updater.check()["auto"])
+            updater._note_attempt("99.0.0")  # first try: the app restarts still on the old version
+            updater._checked_since_launch = False
+            self.assertTrue(updater.check()["auto"])  # one more automatic try
+            updater._note_attempt("99.0.0")
+            updater._checked_since_launch = False
+            status = updater.check()
+        self.assertFalse(status["auto"])  # now it waits for "Update now"
+        self.assertTrue(status["can_install"])
+
+    def test_windows_update_runs_hidden(self):
+        rel = updater._release_info(fake_release(assets=[updater.WINDOWS_ASSET]))
+        with mock.patch.object(updater, "install_method", return_value="windows-installer"), \
+                mock.patch.object(updater, "_download"), mock.patch.object(updater.subprocess, "Popen") as popen:
+            updater.install(rel)
+        self.assertIn("/VERYSILENT", popen.call_args[0][0])
+
     def test_pip_copies_update_from_the_release_wheel(self):
         release = updater._release_info(fake_release(assets=["ai_token_tracker-99.0.0-py3-none-any.whl", "x.zip"]))
         self.assertTrue(updater._asset_for("pip", release)["url"].endswith(".whl"))

@@ -1161,7 +1161,7 @@ async function checkUpdates(force) {
   if (force && !u.available && !u.error) toast(`You have the latest version (${u.current}).`);
   if (force && u.error) toast(u.error);
   // Updates install automatically, once per session, as soon as a newer version is seen.
-  if (u.available && u.can_install && !updates.installing && !updates.autoTried) {
+  if (u.available && u.can_install && u.auto !== false && !updates.installing && !updates.autoTried) {
     updates.autoTried = true;
     installUpdate();
   }
