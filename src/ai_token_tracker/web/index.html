@@ -16,6 +16,7 @@
   <nav class="tabs" role="tablist" aria-label="Pages">
     <button role="tab" data-page="overview" aria-selected="true">Overview</button>
     <button role="tab" data-page="sessions" aria-selected="false">Sessions</button>
+    <button role="tab" data-page="insights" aria-selected="false">Insights</button>
     <button role="tab" data-page="sources" aria-selected="false">Sources</button>
   </nav>
   <div class="top-actions">
@@ -117,6 +118,7 @@
   </section>
 
   <section id="page-sessions" class="page" hidden>
+    <div class="card insight-strip" id="sessionInsights"></div>
     <div class="toolbar">
       <input type="search" id="sessionSearch" placeholder="Search prompts, projects, models…" aria-label="Search sessions">
       <select id="sessionSort" aria-label="Sort sessions">
@@ -128,6 +130,34 @@
     <p class="muted small" id="sessionCount"></p>
     <div class="session-list" id="sessionList"></div>
     <button class="more-btn" id="moreSessions" hidden>Show more</button>
+  </section>
+
+  <section id="page-insights" class="page" hidden>
+    <div class="grid">
+      <article class="card span-12">
+        <div class="card-head"><h2>What the tokens produced</h2><span class="muted small">git commits made during AI sessions</span></div>
+        <p id="valueSummary"></p>
+        <div class="table-wrap"><table class="data" id="valueTable"></table></div>
+        <p class="note">Read from git on this computer: only your own commits, and only their time and title. A commit counts when exactly one AI session in that project was active (or had replied within 15 minutes).</p>
+      </article>
+      <article class="card span-7">
+        <div class="card-head"><h2>Context size</h2><button class="text-btn" id="contextRefresh">Check again</button></div>
+        <p id="contextSummary"></p>
+        <div class="table-wrap"><table class="data" id="contextGlobal"></table></div>
+        <div id="contextProjects"></div>
+        <p class="note">Estimated at about 4 characters per token. Only file sizes are used; nothing is sent anywhere.</p>
+      </article>
+      <article class="card span-5">
+        <div class="card-head"><h2>Skills</h2><span class="muted small">Claude Code · all time</span></div>
+        <div class="table-wrap"><table class="data" id="skillsTable"></table></div>
+        <p class="note">Tokens and cost of the replies that ran each skill.</p>
+      </article>
+      <article class="card span-12">
+        <div class="card-head"><h2>Cache savings</h2></div>
+        <p id="cacheSummary"></p>
+        <div class="table-wrap"><table class="data" id="cacheTable"></table></div>
+      </article>
+    </div>
   </section>
 
   <section id="page-sources" class="page" hidden>

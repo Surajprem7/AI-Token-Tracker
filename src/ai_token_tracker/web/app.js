@@ -28,6 +28,8 @@ const state = {
   search: "", sessionSort: "recent", shown: 50,
   theme: store.get("theme", "auto"),
   loadedAt: null,
+  costlyAbove: Infinity,  // sessions costing at least this are flagged "costly"
+  limits: null, context: null,
 };
 
 /* ---------------------------------------------------------------- helpers */
@@ -117,15 +119,35 @@ async function load(refresh) {
   }
 }
 
+/** Time spent actively working: gaps longer than 30 minutes (lunch, a resumed session) don't count. */
+function activeTime(stamps) {
+  stamps.sort((a, b) => a - b);
+  let total = 0;
+  for (let i = 1; i < stamps.length; i++) { const gap = stamps[i] - stamps[i - 1]; if (gap <= 30 * 60000) total += gap; }
+  return total;
+}
+
+/** Prompts sent again in the same session (retries usually mean the first answer missed). */
+function repeatedPrompts(s) {
+  const seen = new Set();
+  let n = 0;
+  for (const t of s.turns) {
+    const key = (t.p || "").toLowerCase().replace(/\s+/g, " ").trim();
+    if (!key || key.startsWith("[sub-agent]") || key.length < 8) continue;
+    if (seen.has(key)) n++; else seen.add(key);
+  }
+  return n;
+}
+
 function prepare() {
   const d = state.data;
   const calls = [];
   d.sessions.forEach((s, si) => {
     s.turns.forEach((t, ti) => {
       t.c.forEach((c) => {
-        const [ts, model, app, inp, out, cw, cr, cost, priced, sub] = c;
+        const [ts, model, app, inp, out, cw, cr, cost, priced, sub, saved] = c;
         calls.push({ ts, tool: s.tool, model, app, proj: s.project, si, ti, inp, out, cw, cr,
-          total: inp + out + cw + cr, cost, priced, sub });
+          total: inp + out + cw + cr, cost, priced, sub, saved: saved || 0 });
       });
     });
     let tot = 0, cost = 0, start = null, end = null;
@@ -135,6 +157,8 @@ function prepare() {
       if (c[0]) { start = start === null ? c[0] : Math.min(start, c[0]); end = end === null ? c[0] : Math.max(end, c[0]); }
     }));
     s._total = tot; s._cost = cost; s._start = start; s._end = end; s._models = [...models];
+    s._active = activeTime(s.turns.flatMap((t) => t.c.map((c) => c[0])).filter(Boolean));
+    s._repeats = repeatedPrompts(s);
   });
   state.calls = calls;
 
@@ -201,6 +225,7 @@ function render() {
   renderChrome();
   if (state.page === "overview") renderOverview();
   if (state.page === "sessions") renderSessions();
+  if (state.page === "insights") renderInsights();
   if (state.page === "sources") renderSources();
 }
 
@@ -605,6 +630,9 @@ function renderSessions() {
     return hay.includes(q);
   });
   const sorters = { recent: (a, b) => (b.s._end || 0) - (a.s._end || 0), tokens: (a, b) => b.s._total - a.s._total, cost: (a, b) => b.s._cost - a.s._cost };
+  const costs = list.map(({ s }) => s._cost).sort((a, b) => b - a);
+  state.costlyAbove = costs.length >= 10 ? costs[Math.floor(costs.length * 0.1)] : Infinity;
+  renderSessionInsights(list, range);
   list.sort(sorters[state.sessionSort]);
   $("sessionCount").textContent = `${fmt(list.length)} session${list.length === 1 ? "" : "s"} · ${range.label.toLowerCase()}`;
   const box = $("sessionList");
@@ -629,6 +657,31 @@ function renderSessions() {
   $("moreSessions").hidden = list.length <= state.shown;
 }
 
+function renderSessionInsights(list, range) {
+  const shown = new Set(list.map(({ i }) => i));
+  const sessions = list.map(({ s }) => s);
+  const calls = filtered(range).filter((c) => shown.has(c.si));
+  const u = sum(calls);
+  const saved = calls.reduce((a, c) => a + c.saved, 0);
+  const prompts = sessions.reduce((a, s) => a + s.turns.filter((t) => t.p && !t.p.startsWith("[sub-agent]")).length, 0);
+  const repeats = sessions.reduce((a, s) => a + s._repeats, 0);
+  const withCommits = sessions.filter((s) => s.commits);
+  const commits = withCommits.reduce((a, s) => a + s.commits.length, 0);
+  const commitCost = withCommits.reduce((a, s) => a + s._cost, 0);
+  const active = sessions.reduce((a, s) => a + s._active, 0);
+  const inAll = u.inp + u.cw + u.cr;
+  const tiles = [
+    ["Per session", sessions.length ? money(u.cost / sessions.length) : "–", sessions.length ? `${compact(u.total / sessions.length)} tokens on average` : ""],
+    ["Per prompt", prompts ? money(u.cost / prompts) : "–", `${fmt(prompts)} prompts`],
+    ["Cache hit rate", inAll ? `${(u.cr / inAll * 100).toFixed(0)}%` : "–", saved >= 0.01 ? `caching saved ${money(saved)}` : "share of input read from cache"],
+    ["Commits", fmt(commits), commits ? `${money(commitCost / commits)} per commit` : "made during AI sessions"],
+    ["Active time", duration(active) || "–", active ? `${money(u.cost / (active / 3600000))} per hour` : ""],
+    ["Repeated prompts", fmt(repeats), prompts ? `${(repeats / prompts * 100).toFixed(1)}% of prompts` : ""],
+  ];
+  $("sessionInsights").innerHTML = tiles.map(([label, value, hint]) =>
+    `<div class="kpi"><div class="label">${esc(label)}</div><div class="value">${esc(value)}</div><div class="hint">${esc(hint)}</div></div>`).join("");
+}
+
 const CARET = `<svg class="caret" viewBox="0 0 16 16"><path d="M6 4l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
 function sessionNode(s) {
@@ -636,18 +689,55 @@ function sessionNode(s) {
   const det = document.createElement("details");
   det.className = "session";
   det.dataset.key = `${s.tool}:${s.id}`;
-  const meta = [d.tools[s.tool], d.projects[s.project], s.branch, dateTime(s._start), duration(s._end - s._start),
-    s._models.map((m) => d.models[m]).join(", ")].filter(Boolean).join(" · ");
+  const meta = [d.tools[s.tool], d.projects[s.project], s.branch, dateTime(s._start),
+    s._active ? `${duration(s._active)} active` : "", s._models.map((m) => d.models[m]).join(", ")].filter(Boolean).join(" · ");
+  const badges = [
+    s.commits ? `<span class="tag good" title="Git commits you made while this session was active">${s.commits.length} commit${s.commits.length === 1 ? "" : "s"}</span>` : "",
+    s._cost >= state.costlyAbove && s._cost > 0 ? `<span class="tag warn" title="Among your 10% most expensive sessions in this period">costly</span>` : "",
+    s._repeats ? `<span class="tag" title="Prompts you sent again in this session">${s._repeats} repeated</span>` : "",
+  ].join("");
   det.innerHTML = `<summary>${CARET}
     <span class="s-title"><span class="dot" style="background:${slotColor(state.toolColor[s.tool])}"></span> ${esc(s.title)}</span>
     <span class="s-nums"><b>${fmt(s._total)}</b><span>${esc(money(s._cost))}</span></span>
-    <span class="s-meta">${esc(meta)}</span></summary><div class="turns"></div>`;
+    <span class="s-meta">${badges}${esc(meta)}</span></summary><div class="turns"></div>`;
   det._fill = () => {
     const box = det.querySelector(".turns");
-    if (!box.childElementCount) s.turns.forEach((t, n) => box.appendChild(turnNode(t, n)));
+    if (box.childElementCount) return;
+    box.appendChild(sessionExtras(s));
+    s.turns.forEach((t, n) => box.appendChild(turnNode(t, n)));
   };
   det.addEventListener("toggle", () => { if (det.open) det._fill(); });
   return det;
+}
+
+function sessionExtras(s) {
+  const box = document.createElement("div");
+  box.className = "s-extras";
+  let cr = 0, inAll = 0, saved = 0;
+  s.turns.forEach((t) => t.c.forEach((c) => { cr += c[6]; inAll += c[3] + c[5] + c[6]; saved += c[10] || 0; }));
+  const facts = [
+    inAll ? `Cache hit rate <b>${(cr / inAll * 100).toFixed(0)}%</b>` : "",
+    saved >= 0.01 ? `Caching saved <b>${esc(money(saved))}</b>` : "",
+    s.commits ? `Cost per commit <b>${esc(money(s._cost / s.commits.length))}</b>` : "",
+  ].filter(Boolean);
+  let html = facts.length ? `<div class="facts">${facts.join("<span class=\"sep\">·</span>")}</div>` : "";
+  if (s.resume) {
+    html += `<div class="resume"><span class="muted small">Continue this session${s.cwd ? ` in <code>${esc(s.cwd)}</code>` : ""}:</span>
+      <code class="cmd">${esc(s.resume)}</code><button class="text-btn copy">Copy</button></div>`;
+  }
+  if (s.commits) {
+    html += `<div class="commits"><span class="muted small">Commits made during this session:</span><ul>${s.commits.map(([h, at, subj]) =>
+      `<li><code>${esc(h)}</code> ${esc(subj)} <span class="muted small">${esc(dateTime(at))}</span></li>`).join("")}</ul></div>`;
+  }
+  box.innerHTML = html;
+  const copy = box.querySelector(".copy");
+  if (copy) copy.onclick = (e) => {
+    e.preventDefault();
+    const text = (s.cwd ? `cd "${s.cwd}" && ` : "") + s.resume;
+    (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject())
+      .then(() => toast("Copied. Paste it into a terminal."), () => toast(text));
+  };
+  return box;
 }
 
 function turnNode(t, n) {
@@ -672,6 +762,80 @@ function turnNode(t, n) {
   };
   det.addEventListener("toggle", () => { if (det.open) det._fill(); });
   return det;
+}
+
+/* ---------------------------------------------------------------- insights */
+
+function renderInsights() {
+  const d = state.data;
+  const range = periodRange(state.period);
+  const calls = filtered(range);
+
+  // What the tokens produced: commits per project in this period.
+  const inRange = (s) => toolEnabled(s.tool) && (range.all || (s._end !== null && s._end >= range.start));
+  const byProject = new Map();
+  d.sessions.filter(inRange).forEach((s) => {
+    const g = byProject.get(s.project) || { project: s.project, sessions: 0, withCommits: 0, commits: 0, cost: 0, commitCost: 0 };
+    g.sessions++; g.cost += s._cost;
+    if (s.commits) { g.withCommits++; g.commits += s.commits.length; g.commitCost += s._cost; }
+    byProject.set(s.project, g);
+  });
+  const rows = [...byProject.values()].filter((g) => g.commits).sort((a, b) => b.commits - a.commits);
+  const totalCommits = rows.reduce((a, g) => a + g.commits, 0);
+  const totalCost = rows.reduce((a, g) => a + g.commitCost, 0);
+  $("valueSummary").innerHTML = totalCommits
+    ? `<b>${fmt(totalCommits)}</b> commits came out of AI sessions in this period, about <b>${esc(money(totalCost / totalCommits))}</b> of AI per commit.`
+    : "No commits matched AI sessions in this period. Commits are matched when you commit in a project folder while an AI session there is active.";
+  $("valueTable").innerHTML = rows.length ? `<thead><tr><th>Project</th><th>Sessions with commits</th><th>Commits</th><th>AI cost of those sessions</th><th>Per commit</th></tr></thead>
+    <tbody>${rows.slice(0, 30).map((g) => `<tr><td>${esc(d.projects[g.project])}</td><td>${fmt(g.withCommits)} of ${fmt(g.sessions)}</td>
+      <td>${fmt(g.commits)}</td><td>${esc(money(g.commitCost))}</td><td>${esc(money(g.commitCost / g.commits))}</td></tr>`).join("")}</tbody>` : "";
+
+  // Skills (Claude Code's Skill tool), all time.
+  const skills = d.skills || [];
+  $("skillsTable").innerHTML = skills.length ? `<thead><tr><th>Skill</th><th>Uses</th><th>Sessions</th><th>Tokens</th><th>Est. cost</th><th>Last used</th></tr></thead>
+    <tbody>${skills.map((k) => `<tr><td>${esc(k.name)}</td><td>${fmt(k.uses)}</td><td>${fmt(k.sessions)}</td><td>${compact(k.tokens)}</td>
+      <td>${esc(money(k.cost))}</td><td>${esc(k.last ? dateLabel(k.last) : "–")}</td></tr>`).join("")}</tbody>`
+    : `<tbody><tr><td class="muted">No skills used yet. Skills appear here when Claude Code runs one.</td></tr></tbody>`;
+
+  // Cache savings by model.
+  const byModel = [...group(calls, (c) => c.model).values()];
+  const savedByModel = new Map();
+  calls.forEach((c) => savedByModel.set(c.model, (savedByModel.get(c.model) || 0) + c.saved));
+  const savedRows = byModel.map((g) => ({ ...g, saved: savedByModel.get(g.key) || 0 })).filter((g) => g.saved >= 0.01).sort((a, b) => b.saved - a.saved);
+  const savedTotal = savedRows.reduce((a, g) => a + g.saved, 0);
+  $("cacheSummary").innerHTML = savedTotal
+    ? `Caching saved about <b>${esc(money(savedTotal))}</b> in this period: the AI re-read your conversation from cache instead of paying full price for it.`
+    : "No cache savings in this period.";
+  $("cacheTable").innerHTML = savedRows.length ? `<thead><tr><th>Model</th><th>Cache reads</th><th>Hit rate</th><th>Saved</th><th>Cost</th></tr></thead>
+    <tbody>${savedRows.slice(0, 15).map((g) => `<tr><td>${esc(d.models[g.key])}</td><td>${compact(g.cr)}</td>
+      <td>${(g.cr / ((g.inp + g.cw + g.cr) || 1) * 100).toFixed(0)}%</td><td>${esc(money(g.saved))}</td><td>${esc(money(g.cost))}</td></tr>`).join("")}</tbody>` : "";
+
+  loadContext(false);
+}
+
+async function loadContext(force) {
+  if (state.context && !force) return renderContext();
+  try {
+    const res = await fetch("/api/context", { headers: { "X-Token": TOKEN } });
+    state.context = await res.json();
+  } catch {
+    return;
+  }
+  renderContext();
+}
+
+function renderContext() {
+  const c = state.context;
+  if (!c) return;
+  const fileRows = (files) => files.map((f) => `<tr><td title="${esc(f.path)}">${esc(f.label)}</td><td>${esc(f.tool)}</td><td>${fmt(f.tokens)}</td></tr>`).join("");
+  const heavy = c.global_tokens + (c.projects[0]?.tokens || 0);
+  $("contextSummary").innerHTML = (c.global.length || c.projects.length)
+    ? `These files are added to <b>every message</b> you send. Your global ones add about <b>${fmt(c.global_tokens)}</b> tokens to each message${c.projects.length ? `; with your largest project, <b>${fmt(heavy)}</b>` : ""}. Shorter files mean cheaper and faster replies.`
+    : "No instruction files (CLAUDE.md, AGENTS.md, GEMINI.md, rules files) found.";
+  $("contextGlobal").innerHTML = c.global.length ? `<thead><tr><th>Global file</th><th>Used by</th><th>≈ tokens</th></tr></thead><tbody>${fileRows(c.global)}</tbody>` : "";
+  $("contextProjects").innerHTML = c.projects.slice(0, 12).map((p) => `<details class="ctx-project"><summary><b>${esc(p.project)}</b>
+      <span class="muted small">${fmt(p.tokens)} tokens per message · ${p.files.length} file${p.files.length === 1 ? "" : "s"}</span></summary>
+      <div class="table-wrap"><table class="data"><tbody>${fileRows(p.files)}</tbody></table></div></details>`).join("");
 }
 
 /* ---------------------------------------------------------------- sources */
@@ -900,6 +1064,7 @@ function init() {
   // Tells the local server the dashboard is still open (it quits when every tab is closed).
   setInterval(() => fetch("/api/ping", { headers: { "X-Token": TOKEN } }).catch(() => {}), 45000);
   $("checkNow").onclick = () => checkUpdates(true);
+  $("contextRefresh").onclick = () => loadContext(true);
   load(false).then(() => { checkUpdates(false); loadPlan(false); });
   setInterval(() => { if (!document.hidden) loadPlan(false); }, 2 * 60 * 1000);
   setInterval(() => checkUpdates(false), 3 * 3600 * 1000);  // the server itself asks GitHub at most every 6 hours

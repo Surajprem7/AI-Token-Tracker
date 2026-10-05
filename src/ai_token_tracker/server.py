@@ -9,6 +9,7 @@ read your usage data.
 from __future__ import annotations
 
 import json
+import re
 import secrets
 import threading
 import time
@@ -17,7 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import __version__, cursor_usage, limits, plan, pricing, updater
+from . import __version__, context, cursor_usage, limits, outcomes, plan, pricing, updater
 from .core import Session, default_roots, load_sessions
 from .sources import data_signature, source_status
 
@@ -31,9 +32,22 @@ CONTENT_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; c
                  ".png": "image/png", ".ico": "image/x-icon"}  # prompts are clipped in the payload; the dashboard only shows a preview
 
 
+RESUME = {"Claude Code": "claude --resume {id}", "Codex CLI": "codex resume {id}", "Grok": "grok --resume {id}"}
+SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
+
+
+def resume_command(s: Session) -> str | None:
+    """The command that continues this session (run it in the session's folder). Only plain ids are
+    used, so copying the command can never paste anything else into a terminal."""
+    template = RESUME.get(s.tool)
+    if not template or not SAFE_ID.match(s.session_id or "") or s.session_id.startswith("agent-"):
+        return None
+    return template.format(id=s.session_id)
+
+
 def build_payload(sessions: list[Session], roots: list[Path] | None) -> dict:
     """Compact JSON for the dashboard. Calls are arrays to keep it small:
-    [epoch_ms, model_idx, app_idx, input, output, cache_write, cache_read, cost_usd, priced, subagent]
+    [epoch_ms, model_idx, app_idx, input, output, cache_write, cache_read, cost_usd, priced, subagent, saved_usd]
     """
     tables: dict[str, dict[str, int]] = {"tools": {}, "models": {}, "apps": {}, "projects": {}}
 
@@ -43,32 +57,51 @@ def build_payload(sessions: list[Session], roots: list[Path] | None) -> dict:
             t[value] = len(t)
         return t[value]
 
+    try:
+        commits = outcomes.link_commits(sessions)
+    except Exception:  # git missing or odd: the rest of the dashboard still works
+        commits = {}
+    skills: dict[str, list] = {}  # name -> [uses, tokens, cost, sessions set, last ms]
     out = []
-    for s in sessions:
+    for n, s in enumerate(sessions):
         turns = []
         for t in s.turns:
             calls = []
             for c in t.calls:
                 u = c.usage
+                ms = int(c.timestamp.timestamp() * 1000) if c.timestamp else None
                 calls.append([
-                    int(c.timestamp.timestamp() * 1000) if c.timestamp else None,
-                    idx("models", c.model or "unknown"), idx("apps", c.app or s.tool),
+                    ms, idx("models", c.model or "unknown"), idx("apps", c.app or s.tool),
                     u.input, u.output, u.cache_write, u.cache_read,
-                    round(u.cost, 6), 0 if u.unpriced else 1, 1 if c.subagent else 0,
+                    round(u.cost, 6), 0 if u.unpriced else 1, 1 if c.subagent else 0, round(u.saved, 6),
                 ])
+                for name in c.skills:  # a response that used several skills shares its cost between them
+                    k = skills.setdefault(name, [0, 0, 0.0, set(), 0])
+                    k[0] += 1
+                    k[1] += u.total // len(c.skills)
+                    k[2] += u.cost / len(c.skills)
+                    k[3].add(n)
+                    k[4] = max(k[4], ms or 0)
             prompt = t.prompt if len(t.prompt) <= PROMPT_CHARS else t.prompt[: PROMPT_CHARS - 1] + "…"
             turns.append({"p": prompt, "t": int(t.timestamp.timestamp() * 1000) if t.timestamp else None,
                           "c": calls})
-        out.append({
+        row = {
             "id": s.session_id, "tool": idx("tools", s.tool), "project": idx("projects", s.project or "-"),
             "title": s.title[:PROMPT_CHARS], "branch": s.branch, "cwd": s.cwd, "turns": turns,
-        })
+        }
+        if (cmd := resume_command(s)):
+            row["resume"] = cmd
+        if commits.get(n):
+            row["commits"] = [[c["hash"], int(c["at"].timestamp() * 1000), c["subject"]] for c in commits[n]]
+        out.append(row)
     return {
         "version": __version__,
         "generated": datetime.now(timezone.utc).isoformat(),
         "tools": list(tables["tools"]), "models": list(tables["models"]),
         "apps": list(tables["apps"]), "projects": list(tables["projects"]),
         "sessions": out,
+        "skills": [{"name": k, "uses": v[0], "tokens": v[1], "cost": round(v[2], 6), "sessions": len(v[3]),
+                    "last": v[4] or None} for k, v in sorted(skills.items(), key=lambda kv: -kv[1][1])],
         "sources": source_status(roots),
         "pricing": pricing.pricing_info(),
     }
@@ -81,6 +114,7 @@ class Dashboard:
         self.lock = threading.Lock()
         self.payload: bytes = b""
         self.signature = None
+        self.cwds: list[str] = []  # project folders of recent sessions, newest first
         self.last_ping = time.monotonic()
         self.exit_event = threading.Event()  # set when an update needs the app to quit
 
@@ -92,6 +126,8 @@ class Dashboard:
             signature = data_signature(self.roots)
             if force or not self.payload or signature != self.signature:
                 sessions = load_sessions(self.roots)
+                recent = sorted((s for s in sessions if s.cwd and s.end), key=lambda s: s.end, reverse=True)
+                self.cwds = [s.cwd for s in recent][:200]
                 self.payload = json.dumps(build_payload(sessions, self.roots), separators=(",", ":")).encode()
                 self.signature = signature
             return self.payload
@@ -121,6 +157,9 @@ def make_handler(app: Dashboard, port_ref: list):
             self.end_headers()
             self.wfile.write(body)
 
+        def cwds_ready(self) -> bool:
+            return bool(app.payload)
+
         def _api_allowed(self, query: dict) -> bool:
             token = self.headers.get("X-Token") or (query.get("t") or [""])[0]
             return secrets.compare_digest(token.encode("utf-8", "replace"), app.token.encode())
@@ -141,6 +180,10 @@ def make_handler(app: Dashboard, port_ref: list):
                         return self._send(500, json.dumps({"error": str(exc)}).encode())
                 if url.path == "/api/plan":
                     return self._send(200, json.dumps(plan.status(force="force" in query)).encode())
+                if url.path == "/api/context":
+                    if not self.cwds_ready():
+                        app.data()
+                    return self._send(200, json.dumps(context.report(app.cwds)).encode())
                 if url.path == "/api/limits":
                     return self._send(200, json.dumps(limits.status(force="force" in query)).encode())
                 if url.path == "/api/update":

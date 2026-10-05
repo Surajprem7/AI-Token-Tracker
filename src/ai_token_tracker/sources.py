@@ -123,7 +123,15 @@ def load_codex_sessions() -> list[Session]:
         folder = home / sub
         if folder.is_dir():
             files += sorted(folder.rglob("*.jsonl"))
-    return [load_codex_file(f) for f in files]
+    sessions = [load_codex_file(f) for f in files]
+    # Codex names each thread itself (session_index.jsonl: {id, thread_name}); prefer that title.
+    names = {}
+    for rec in read_jsonl(home / "session_index.jsonl"):
+        if isinstance(rec.get("id"), str) and isinstance(rec.get("thread_name"), str) and rec["thread_name"].strip():
+            names[rec["id"]] = " ".join(rec["thread_name"].split())[:200]
+    for s in sessions:
+        s.title = names.get(s.session_id) or s.title
+    return sessions
 
 
 def load_codex_file(path: Path) -> Session:

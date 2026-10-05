@@ -311,3 +311,23 @@ details[open] > summary .caret { transform: rotate(90deg); }
 
 .more-sources { margin-top: 12px; }
 .more-sources > summary { cursor: pointer; color: var(--muted); padding: 6px 0; }
+
+/* ---- session insights ---- */
+.insight-strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); padding: 6px 8px; margin-bottom: 12px; }
+.insight-strip .kpi { border-bottom: 0; }
+@media (max-width: 1000px) { .insight-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .insight-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tag { display: inline-block; font-size: 11px; padding: 1px 7px; margin-right: 6px; border-radius: 999px;
+  background: var(--surface-2); color: var(--ink-2); vertical-align: 1px; }
+.tag.good { background: color-mix(in srgb, #0ca30c 16%, transparent); color: var(--ink); }
+.tag.warn { background: color-mix(in srgb, #fab219 22%, transparent); color: var(--ink); }
+.s-extras { padding: 8px 6px 10px 28px; display: grid; gap: 8px; font-size: 13px; border-top: 1px solid var(--grid); }
+.s-extras:empty { display: none; }
+.s-extras .facts .sep { margin: 0 8px; color: var(--muted); }
+.s-extras .resume { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.s-extras .resume .text-btn { margin-left: 0; }
+.s-extras code, .ctx-project code { font-size: 12px; }
+.s-extras code.cmd { background: var(--surface-2); padding: 3px 8px; border-radius: 6px; overflow-wrap: anywhere; }
+.s-extras .commits ul { margin: 4px 0 0; padding-left: 18px; }
+.ctx-project { border-top: 1px solid var(--grid); padding: 6px 0; }
+.ctx-project > summary { cursor: pointer; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }

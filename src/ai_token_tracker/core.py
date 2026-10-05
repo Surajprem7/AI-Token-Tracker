@@ -35,13 +35,14 @@ class Usage:
     cache_write_1h: int = 0  # part of cache_write that used the 1-hour cache (priced higher)
     cost: float = 0.0        # estimated USD, filled in by pricing.apply_costs()
     unpriced: int = 0        # tokens from models with no known price
+    saved: float = 0.0       # USD the cache reads saved compared with full-price input
 
     @property
     def total(self) -> int:
         return self.input + self.output + self.cache_write + self.cache_read
 
     def add(self, other: "Usage") -> None:
-        for f in TOKEN_FIELDS + ("cache_write_1h", "cost", "unpriced"):
+        for f in TOKEN_FIELDS + ("cache_write_1h", "cost", "unpriced", "saved"):
             setattr(self, f, getattr(self, f) + getattr(other, f))
 
     def to_dict(self) -> dict:
@@ -60,6 +61,7 @@ class ApiCall:
     app: str = ""  # which app sent the request (terminal, desktop, web, IDE, ...)
     reported_cost: float | None = None  # cost the tool itself logged, used when we have no price
     key: str = ""  # the tool's id for this response, used to drop copies in forked sessions
+    skills: tuple = ()  # Claude Code skills this response invoked (the Skill tool)
 
 
 @dataclass
@@ -217,7 +219,8 @@ def prompt_text(entry: dict) -> str | None:
         return None
     text = " ".join(text.split())
     # Slash-command / system wrappers are not interesting as titles.
-    if not text or text.startswith("<command-") or text.startswith("<local-command"):
+    # Slash-command wrappers and notices the app injects (background task results) aren't prompts.
+    if not text or text.startswith(("<command-", "<local-command", "<task-notification", "<system-reminder")):
         return None
     return text
 
@@ -271,6 +274,13 @@ def collect_calls(path: Path, subagent: bool, on_prompt=None, meta=None) -> list
         if not isinstance(raw, dict):
             continue
         key = msg.get("id") or entry.get("requestId") or entry.get("uuid") or f"line{i}"
+        # One response is written as several lines (one per content block): collect its skills from all.
+        skills = calls[key].skills if key in calls else ()
+        for block in msg.get("content") if isinstance(msg.get("content"), list) else ():
+            if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") == "Skill":
+                name = (block.get("input") or {}).get("skill") if isinstance(block.get("input"), dict) else None
+                if isinstance(name, str) and name.strip() and name.strip() not in skills:
+                    skills += (name.strip()[:80],)
         if key not in calls:
             order.append(key)
         calls[key] = ApiCall(
@@ -280,6 +290,7 @@ def collect_calls(path: Path, subagent: bool, on_prompt=None, meta=None) -> list
             subagent=subagent or bool(entry.get("isSidechain")),
             app=app,
             key=key if not key.startswith("line") else "",
+            skills=skills,
         )
     return [calls[k] for k in order]
 

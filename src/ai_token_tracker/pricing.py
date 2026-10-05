@@ -144,28 +144,36 @@ def lookup(model: str) -> Price | None:
     return table[best] if best else None
 
 
-def cost(model: str, usage: Usage) -> float | None:
-    """Estimated USD for one call, or None when the model has no known price."""
-    p = lookup(model)
-    if p is None:
-        return None
+def _cost_with(p: Price, usage: Usage) -> float:
     inp, out, read, w5, w1 = p
     one_hour = min(usage.cache_write_1h, usage.cache_write)
     return (usage.input * inp + usage.output * out + usage.cache_read * read
             + (usage.cache_write - one_hour) * w5 + one_hour * w1) / 1_000_000
 
 
+def cost(model: str, usage: Usage) -> float | None:
+    """Estimated USD for one call, or None when the model has no known price."""
+    p = lookup(model)
+    return None if p is None else _cost_with(p, usage)
+
+
 def apply_costs(sessions) -> None:
-    """Fill usage.cost / usage.unpriced on every API call."""
+    """Fill usage.cost / usage.unpriced / usage.saved on every API call."""
+    prices: dict[str, Price | None] = {}
     for s in sessions:
         for call in s.calls:
-            c = cost(call.model, call.usage)
+            if call.model not in prices:
+                prices[call.model] = lookup(call.model)
+            p = prices[call.model]
+            c = _cost_with(p, call.usage) if p else None
             if c is None and call.reported_cost is not None:
                 c = call.reported_cost  # e.g. Roo Code logs its own cost but not the model
             if c is None:
                 call.usage.cost, call.usage.unpriced = 0.0, call.usage.total
             else:
                 call.usage.cost, call.usage.unpriced = c, 0
+            # What the cached part of the prompt would have cost at the full input price.
+            call.usage.saved = max(call.usage.cache_read * (p[0] - p[2]) / 1_000_000, 0.0) if p else 0.0
 
 
 def trim(litellm: dict) -> dict:
