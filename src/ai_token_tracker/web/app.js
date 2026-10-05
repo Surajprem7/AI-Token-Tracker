@@ -30,6 +30,10 @@ const state = {
   loadedAt: null,
   costlyAbove: Infinity,  // sessions costing at least this are flagged "costly"
   limits: null, context: null,
+  currency: store.get("currency", "USD"), rates: store.get("rates", null),
+  customFrom: store.get("customFrom", ""), customTo: store.get("customTo", ""),
+  cardOrder: store.get("cardOrder", []),
+  trendZoom: false,
 };
 
 /* ---------------------------------------------------------------- helpers */
@@ -47,7 +51,21 @@ function compact(n) {
   if (a >= 1e3) return (n / 1e3).toFixed(a >= 1e4 ? 0 : 1) + "k";
   return String(Math.round(n));
 }
+/** USD amount in the chosen currency ("$1.23", "₹102", "€0.98"). */
+const moneyFmt = {};
+function currencyFormat(cur, digits) {
+  return moneyFmt[cur + digits] ||= new Intl.NumberFormat(undefined,
+    { style: "currency", currency: cur, minimumFractionDigits: digits, maximumFractionDigits: digits });
+}
 function money(v) {
+  const cur = state.currency, rate = cur === "USD" ? 1 : state.rates?.rates?.[cur];
+  if (!rate) return usd(v);
+  v = (v || 0) * rate;
+  if (v === 0) return currencyFormat(cur, 0).format(0);
+  if (v < 0.01) return "<" + currencyFormat(cur, 2).format(0.01);
+  return currencyFormat(cur, v >= 1000 || (v >= 100 && rate > 20) ? 0 : 2).format(v);
+}
+function usd(v) {
   v = v || 0;
   if (v === 0) return "$0";
   if (v < 0.01) return "<$0.01";
@@ -188,8 +206,22 @@ function periodRange(period) {
     for (const c of state.calls) if (c.ts && c.ts < min) min = c.ts;
     return { start: sod(min), end: now + 1, days: Math.max(1, Math.round((sod(now) - sod(min)) / DAY) + 1), label: "All time", all: true };
   }
+  if (period === "custom") {
+    const from = Date.parse(state.customFrom + "T00:00:00"), to = Date.parse(state.customTo + "T00:00:00");
+    if (from && to && to >= from) {
+      const end = addDays(sod(to), 1);
+      return { start: sod(from), end, days: Math.round((end - sod(from)) / DAY), custom: true,
+        label: `${dateLabel(from, { month: "short", day: "numeric", year: "numeric" })} – ${dateLabel(to, { month: "short", day: "numeric", year: "numeric" })}` };
+    }
+    period = "30";
+  }
   const n = Number(period);
   return { start: addDays(sod(now), -(n - 1)), end: now + 1, days: n, label: `Last ${n} days` };
+}
+
+/** Does a session overlap the period? */
+function sessionInRange(s, range) {
+  return range.all || (s._end !== null && s._end >= range.start && (s._start === null || s._start < range.end));
 }
 
 function filtered(range) {
@@ -233,6 +265,8 @@ function renderChrome() {
   document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.page === state.page)));
   document.querySelectorAll(".page").forEach((p) => { p.hidden = p.id !== "page-" + state.page; });
   document.querySelectorAll("#period button").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.period === state.period)));
+  const custom = state.period === "custom" ? periodRange("custom") : null;
+  $("customBtn").textContent = custom?.custom ? custom.label : "Custom…";
   document.querySelector(".filters").hidden = state.page === "sources";
 
   const totals = group(state.calls, (c) => c.tool);
@@ -267,7 +301,7 @@ function renderOverview() {
   } else {
     const len = range.days * DAY;
     const prev = sum(state.calls.filter((c) => toolEnabled(c.tool) && c.ts !== null && c.ts >= range.start - len && c.ts < range.start));
-    const name = state.period === "today" ? "yesterday" : `the previous ${range.days} days`;
+    const name = state.period === "today" ? "yesterday" : `the ${range.days} days before`;
     if (!prev.total) $("heroDelta").textContent = `No usage in ${name}`;
     else {
       const pct = (u.total - prev.total) / prev.total * 100;
@@ -355,7 +389,7 @@ function buckets(range) {
   const weekly = range.days > 120;
   let t = range.start;
   if (weekly) { const d = new Date(t); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); t = sod(d.getTime()); }
-  while (t <= now) {
+  while (t < Math.min(range.end, now + 1)) {
     const next = weekly ? addDays(t, 7) : addDays(t, 1);
     out.push({ start: t, end: next, label: weekly ? `Week of ${dateLabel(t)}` : dateLabel(t, { weekday: "short", month: "short", day: "numeric" }),
       short: dateLabel(t) });
@@ -395,7 +429,8 @@ function renderTrend(calls, range) {
   box.style.minHeight = "";
   if (!sortedCalls.length) { box.innerHTML = `<div class="empty">No usage in this period.</div>`; $("trendLegend").innerHTML = ""; return; }
 
-  const W = Math.max(300, box.clientWidth || 760), H = W < 500 ? 200 : 250, L = 44, R = 6, T = 10, B = 24;
+  const W = Math.max(300, box.clientWidth || 760), H = state.trendZoom ? Math.max(360, Math.min(560, innerHeight - 260)) : W < 500 ? 200 : 250,
+    L = 44, R = 6, T = 10, B = 24;
   const pw = W - L - R, ph = H - T - B, slot = pw / bs.length;
   const bw = Math.max(2, Math.min(24, slot * 0.66));
   const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Stacked bar chart of usage over time" });
@@ -623,7 +658,7 @@ function renderSessions() {
   const q = state.search.trim().toLowerCase();
   let list = d.sessions.map((s, i) => ({ s, i })).filter(({ s }) => {
     if (!toolEnabled(s.tool)) return false;
-    if (!range.all && !(s._end !== null && s._end >= range.start)) return false;
+    if (!sessionInRange(s, range)) return false;
     if (!q) return true;
     const hay = [s.title, s.id, d.tools[s.tool], d.projects[s.project], s.branch, ...s._models.map((m) => d.models[m]),
       ...s.turns.map((t) => t.p)].join(" ").toLowerCase();
@@ -772,7 +807,7 @@ function renderInsights() {
   const calls = filtered(range);
 
   // What the tokens produced: commits per project in this period.
-  const inRange = (s) => toolEnabled(s.tool) && (range.all || (s._end !== null && s._end >= range.start));
+  const inRange = (s) => toolEnabled(s.tool) && sessionInRange(s, range);
   const byProject = new Map();
   d.sessions.filter(inRange).forEach((s) => {
     const g = byProject.get(s.project) || { project: s.project, sessions: 0, withCommits: 0, commits: 0, cost: 0, commitCost: 0 };
@@ -919,6 +954,161 @@ async function loadPlan(force) {
   if (typeof renderWidget === "function") renderWidget();
 }
 
+
+/* ---------------------------------------------------------------- currency */
+
+async function setCurrency(cur) {
+  state.currency = cur;
+  store.set("currency", cur);
+  if (cur !== "USD" && (!state.rates?.rates?.[cur] || Date.now() / 1000 - (state.rates.fetchedAt || 0) > 12 * 3600)) {
+    try {
+      const res = await fetch("/api/rates", { headers: { "X-Token": TOKEN } });
+      const body = await res.json();
+      if (body.error) throw new Error(body.error);
+      state.rates = { ...body, fetchedAt: Date.now() / 1000 };
+      store.set("rates", state.rates);
+    } catch (err) {
+      if (!state.rates?.rates?.[cur]) { toast(`${err.message}. Showing US dollars.`); }
+    }
+  }
+  render();
+}
+
+/* ---------------------------------------------------------------- arrange cards */
+
+function applyCardOrder() {
+  const grid = $("overviewGrid");
+  const cards = [...grid.querySelectorAll(":scope > [data-card]")];
+  const order = state.cardOrder.filter((id) => cards.some((c) => c.dataset.card === id));
+  cards.sort((a, b) => {
+    const ia = order.indexOf(a.dataset.card), ib = order.indexOf(b.dataset.card);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  }).forEach((c) => grid.appendChild(c));
+}
+
+function wireCardDrag() {
+  const grid = $("overviewGrid");
+  let dragged = null;
+  grid.querySelectorAll(":scope > [data-card]").forEach((card) => {
+    const handle = document.createElement("button");
+    handle.className = "drag-handle";
+    handle.title = "Drag to move this card";
+    handle.setAttribute("aria-label", "Move card (drag, or use arrow keys)");
+    handle.innerHTML = `<svg viewBox="0 0 16 16"><circle cx="5" cy="4" r="1.3"/><circle cx="11" cy="4" r="1.3"/><circle cx="5" cy="8" r="1.3"/><circle cx="11" cy="8" r="1.3"/><circle cx="5" cy="12" r="1.3"/><circle cx="11" cy="12" r="1.3"/></svg>`;
+    card.appendChild(handle);
+    handle.addEventListener("mousedown", () => { card.draggable = true; });
+    handle.addEventListener("keydown", (e) => {  // keyboard: arrows move the card one place
+      if (!["ArrowUp", "ArrowLeft", "ArrowDown", "ArrowRight"].includes(e.key)) return;
+      e.preventDefault();
+      const back = e.key === "ArrowUp" || e.key === "ArrowLeft";
+      if (back && card.previousElementSibling?.dataset.card) grid.insertBefore(card, card.previousElementSibling);
+      if (!back && card.nextElementSibling?.dataset.card) grid.insertBefore(card.nextElementSibling, card);
+      saveCardOrder(); handle.focus();
+    });
+    card.addEventListener("dragstart", (e) => { dragged = card; card.classList.add("dragging"); e.dataTransfer.effectAllowed = "move"; });
+    card.addEventListener("dragend", () => {
+      card.draggable = false; card.classList.remove("dragging"); dragged = null;
+      grid.querySelectorAll(".drop-before").forEach((c) => c.classList.remove("drop-before"));
+      saveCardOrder();
+      renderOverview();
+    });
+    card.addEventListener("dragover", (e) => {
+      if (!dragged || dragged === card) return;
+      e.preventDefault();
+      const r = card.getBoundingClientRect();
+      const after = e.clientY > r.top + r.height / 2 && e.clientX > r.left + r.width / 2;
+      grid.insertBefore(dragged, after ? card.nextElementSibling : card);
+    });
+  });
+}
+
+function saveCardOrder() {
+  state.cardOrder = [...$("overviewGrid").querySelectorAll(":scope > [data-card]")].map((c) => c.dataset.card);
+  store.set("cardOrder", state.cardOrder);
+}
+
+/* ---------------------------------------------------------------- search (Ctrl+K) */
+
+const palette = { items: [], active: 0 };
+
+function openPalette() {
+  $("palette").hidden = false;
+  const input = $("paletteInput");
+  input.value = "";
+  fillPalette("");
+  input.focus();
+}
+
+function closePalette() { $("palette").hidden = true; }
+
+function paletteItems(q) {
+  const d = state.data;
+  const items = [
+    { kind: "Page", label: "Overview", run: () => goPage("overview") },
+    { kind: "Page", label: "Sessions", run: () => goPage("sessions") },
+    { kind: "Page", label: "Insights", run: () => goPage("insights") },
+    { kind: "Page", label: "Sources", run: () => goPage("sources") },
+    { kind: "Action", label: "Refresh now", run: () => { load(true); loadPlan(true); } },
+    { kind: "Action", label: "Switch light / dark theme", run: () => $("theme").click() },
+    { kind: "Action", label: "Check for updates", run: () => checkUpdates(true) },
+    ...["today", "7", "30", "90", "all"].map((p) => ({ kind: "Period", label: periodRange(p).label, run: () => setPeriod(p) })),
+  ];
+  if (d) {
+    d.projects.forEach((name, i) => { if (name !== "-") items.push({ kind: "Project", label: name, run: () => searchSessions(name) }); });
+    d.models.forEach((name) => items.push({ kind: "Model", label: name, run: () => searchSessions(name) }));
+    d.sessions.slice().sort((a, b) => (b._end || 0) - (a._end || 0)).forEach((s) =>
+      items.push({ kind: d.tools[s.tool], label: s.title || s.id, hint: `${dateTime(s._start)} · ${money(s._cost)}`,
+        text: s.turns.map((t) => t.p).join(" "), run: () => openSession(s) }));
+  }
+  if (!q) return items.slice(0, 40);
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const hit = (it, full) => { const hay = `${it.kind} ${it.label} ${full ? it.text || "" : ""}`.toLowerCase(); return words.every((w) => hay.includes(w)); };
+  const titles = items.filter((it) => hit(it, false));
+  return [...titles, ...items.filter((it) => it.text && !titles.includes(it) && hit(it, true))].slice(0, 40);
+}
+
+function fillPalette(q) {
+  palette.items = paletteItems(q);
+  palette.active = 0;
+  drawPalette();
+}
+
+function drawPalette() {
+  $("paletteList").innerHTML = palette.items.length ? palette.items.map((it, i) =>
+    `<li role="option" data-i="${i}" aria-selected="${i === palette.active}"><span class="kind">${esc(it.kind)}</span>
+      <span class="label">${esc(it.label)}</span>${it.hint ? `<span class="muted small">${esc(it.hint)}</span>` : ""}</li>`).join("")
+    : `<li class="muted">Nothing found.</li>`;
+  $("paletteList").querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+}
+
+function runPalette(i) {
+  const it = palette.items[i];
+  if (!it) return;
+  closePalette();
+  it.run();
+}
+
+function goPage(page) { state.page = page; store.set("page", page); render(); scrollTo(0, 0); }
+function setPeriod(p) { state.period = p; store.set("period", p); state.shown = 50; $("customRange").hidden = true; render(); }
+function searchSessions(text) {
+  state.search = text; $("sessionSearch").value = text; state.shown = 50;
+  goPage("sessions");
+}
+function openSession(s) {
+  state.search = ""; $("sessionSearch").value = "";
+  if (!sessionInRange(s, periodRange(state.period))) { state.period = "all"; store.set("period", "all"); }
+  const d = state.data;
+  state.hiddenTools.delete(d.tools[s.tool]);
+  goPage("sessions");
+  // make sure it's on the page, then open and show it
+  for (let tries = 0; tries < 50; tries++) {
+    const node = $("sessionList").querySelector(`details.session[data-key="${CSS.escape(`${s.tool}:${s.id}`)}"]`);
+    if (node) { node._fill(); node.open = true; node.scrollIntoView({ block: "start" }); node.querySelector("summary").focus(); return; }
+    if ($("moreSessions").hidden) return;
+    state.shown += 50; renderSessions();
+  }
+}
+
 /* ---------------------------------------------------------------- updates */
 
 const updates = { status: null, installing: false, autoTried: false };
@@ -1019,8 +1209,52 @@ function init() {
     b.onclick = () => { state.page = b.dataset.page; store.set("page", state.page); render(); };
   });
   document.querySelectorAll("#period button").forEach((b) => {
-    b.onclick = () => { state.period = b.dataset.period; store.set("period", state.period); state.shown = 50; render(); };
+    b.onclick = () => {
+      if (b.dataset.period === "custom") {
+        const panel = $("customRange");
+        panel.hidden = !panel.hidden;
+        const today = dayKey(Date.now());
+        $("customTo").value = state.customTo || today;
+        $("customFrom").value = state.customFrom || dayKey(addDays(Date.now(), -13));
+        $("customTo").max = $("customFrom").max = today;
+        if (!panel.hidden) $("customFrom").focus();
+        return;
+      }
+      setPeriod(b.dataset.period);
+    };
   });
+  $("customApply").onclick = () => {
+    const from = $("customFrom").value, to = $("customTo").value;
+    if (!from || !to || to < from) { toast("Pick a start date on or before the end date."); return; }
+    state.customFrom = from; state.customTo = to;
+    store.set("customFrom", from); store.set("customTo", to);
+    $("customRange").hidden = true;
+    setPeriod("custom");
+  };
+  $("currency").value = state.currency;
+  $("currency").onchange = (e) => setCurrency(e.target.value);
+  if (state.currency !== "USD") setCurrency(state.currency);
+  $("trendZoom").onclick = () => {
+    state.trendZoom = !state.trendZoom;
+    $("trendZoom").setAttribute("aria-pressed", String(state.trendZoom));
+    $("trendZoom").closest(".card").classList.toggle("zoomed", state.trendZoom);
+    renderOverview();
+  };
+  applyCardOrder();
+  wireCardDrag();
+  $("searchBtn").onclick = openPalette;
+  document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); $("palette").hidden ? openPalette() : closePalette(); }
+    else if (e.key === "Escape" && !$("palette").hidden) closePalette();
+  });
+  $("paletteInput").oninput = (e) => fillPalette(e.target.value.trim());
+  $("paletteInput").onkeydown = (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); palette.active = Math.min(palette.items.length - 1, palette.active + 1); drawPalette(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); palette.active = Math.max(0, palette.active - 1); drawPalette(); }
+    else if (e.key === "Enter") { e.preventDefault(); runPalette(palette.active); }
+  };
+  $("paletteList").onclick = (e) => { const li = e.target.closest("li[data-i]"); if (li) runPalette(Number(li.dataset.i)); };
+  $("palette").onclick = (e) => { if (e.target === $("palette")) closePalette(); };
   wireSegment("trendGroup", "trendGroup");
   wireSegment("trendMetric", "trendMetric");
   wireSegment("breakdownTab", "breakdown", () => { state.sort = { key: null, dir: -1 }; });

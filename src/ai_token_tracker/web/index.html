@@ -21,6 +21,16 @@
   </nav>
   <div class="top-actions">
     <span class="updated" id="updated"></span>
+    <button class="icon-btn" id="searchBtn" title="Search (Ctrl+K)" aria-label="Search">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <select id="currency" class="currency" title="Currency for costs" aria-label="Currency">
+      <option value="USD">$ USD</option><option value="INR">₹ INR</option><option value="EUR">€ EUR</option>
+      <option value="GBP">£ GBP</option><option value="JPY">¥ JPY</option><option value="CNY">¥ CNY</option>
+      <option value="AUD">A$ AUD</option><option value="CAD">C$ CAD</option><option value="SGD">S$ SGD</option>
+      <option value="AED">AED</option><option value="BRL">R$ BRL</option><option value="KRW">₩ KRW</option>
+      <option value="CHF">CHF</option><option value="SEK">SEK</option><option value="MXN">MX$ MXN</option>
+    </select>
     <button class="icon-btn" id="refresh" title="Refresh now" aria-label="Refresh now">
       <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
@@ -40,14 +50,20 @@
     <button data-period="30" role="radio">30 days</button>
     <button data-period="90" role="radio">90 days</button>
     <button data-period="all" role="radio">All time</button>
+    <button data-period="custom" role="radio" id="customBtn">Custom…</button>
+  </div>
+  <div class="custom-range" id="customRange" hidden>
+    <label>From <input type="date" id="customFrom"></label>
+    <label>To <input type="date" id="customTo"></label>
+    <button class="btn small" id="customApply">Show</button>
   </div>
   <div class="chips" id="toolChips" aria-label="AI tools"></div>
 </div>
 
 <main>
   <section id="page-overview" class="page">
-    <div class="grid">
-      <article class="card hero">
+    <div class="grid" id="overviewGrid">
+      <article data-card="hero" class="card hero">
         <div class="card-label" id="heroLabel">Tokens</div>
         <div class="hero-number" id="heroTotal">–</div>
         <div class="hero-sub">
@@ -59,19 +75,22 @@
         <p class="note" id="unpricedNote"></p>
       </article>
 
-      <article class="card kpis" id="kpis"></article>
+      <article data-card="kpis" class="card kpis" id="kpis"></article>
 
-      <article class="card span-12 plan-card" id="planCard" hidden>
+      <article data-card="plan" class="card span-12 plan-card" id="planCard" hidden>
         <div class="card-head"><h2>Plan limits</h2><span class="muted small" id="planName"></span></div>
         <div class="plan-rows" id="planRows"></div>
         <p class="note">How much of each subscription's limits you've used, for every AI that's logged in on this computer.
           Covers all your use of that account (for Claude: Claude Code here and in the cloud, claude.ai and the phone app).</p>
       </article>
 
-      <article class="card span-8">
+      <article data-card="trend" class="card span-8">
         <div class="card-head">
           <h2 id="trendTitle">Usage over time</h2>
           <div class="head-controls">
+            <button class="icon-btn small" id="trendZoom" title="Bigger chart" aria-label="Bigger chart" aria-pressed="false">
+              <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
             <div class="segmented small" id="trendGroup">
               <button data-v="tool" aria-pressed="true">By AI</button>
               <button data-v="model" aria-pressed="false">By model</button>
@@ -86,22 +105,22 @@
         <div class="legend" id="trendLegend"></div>
       </article>
 
-      <article class="card span-4">
+      <article data-card="hours" class="card span-4">
         <div class="card-head"><h2>When you work</h2><span class="muted small">tokens by hour of day</span></div>
         <div class="chart" id="hours"></div>
       </article>
 
-      <article class="card span-8">
+      <article data-card="heatmap" class="card span-8">
         <div class="card-head"><h2>Activity</h2><span class="muted small">past 12 months · all selected AIs</span></div>
         <div class="heatmap" id="heatmap"></div>
       </article>
 
-      <article class="card span-4">
+      <article data-card="models" class="card span-4">
         <div class="card-head"><h2>Top models</h2><span class="muted small" id="topModelsNote"></span></div>
         <ol class="ranked" id="topModels"></ol>
       </article>
 
-      <article class="card span-12">
+      <article data-card="breakdown" class="card span-12">
         <div class="card-head">
           <div class="segmented small" id="breakdownTab">
             <button data-v="day" aria-pressed="true">Daily</button>
@@ -196,6 +215,13 @@ log_usage("My app", r.model, r.usage.input_tokens, r.usage.output_tokens)</code>
   </section>
 </main>
 
+<div class="palette-backdrop" id="palette" hidden>
+  <div class="palette" role="dialog" aria-modal="true" aria-label="Search">
+    <input type="search" id="paletteInput" placeholder="Search sessions, projects, models, pages…" autocomplete="off" aria-label="Search">
+    <ul id="paletteList" role="listbox"></ul>
+    <div class="palette-hint muted small">↑ ↓ to move · Enter to open · Esc to close</div>
+  </div>
+</div>
 <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
 <div class="toast" id="toast" role="status" hidden></div>
 <script src="app.js"></script>
