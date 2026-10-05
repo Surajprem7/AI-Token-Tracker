@@ -58,7 +58,8 @@ jobs:
                 --osx-bundle-identifier io.github.surajprem7.aitokentracker packaging/app.py ;;
             windows-latest)
               pip install ".[app]"
-              pyinstaller $COMMON --collect-all webview --onefile --windowed --name AITokenTracker packaging/app.py ;;
+              pyinstaller $COMMON --collect-all webview --hidden-import pystray._win32 --onefile --windowed \
+                --name AITokenTracker packaging/app.py ;;
           esac
           pyinstaller $COMMON --onefile --console --name ai-tokens packaging/cli.py
       - name: Windows installer

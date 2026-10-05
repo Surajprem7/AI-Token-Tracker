@@ -27,7 +27,122 @@ def app_data_dir() -> Path:
     return Path(base).expanduser()
 
 
+def _focus_running_copy(widget: bool) -> bool:
+    """If the app is already running, ask it to come forward instead of starting a second copy."""
+    import json
+    import urllib.request
+
+    from .server import DEFAULT_PORT
+
+    req = urllib.request.Request(f"http://127.0.0.1:{DEFAULT_PORT}/api/focus", method="POST",
+                                 data=json.dumps({"widget": widget}).encode(), headers={"X-AITT": "focus"})
+    try:
+        with urllib.request.urlopen(req, timeout=2) as resp:  # noqa: S310 - our own local server
+            return json.loads(resp.read() or b"{}").get("app") == "ai-token-tracker"
+    except Exception:
+        return False
+
+
+def _tray_image():
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((0, 0, 63, 63), radius=14, fill=(42, 120, 214, 255))
+    for x, top in ((16, 28), (28, 18), (40, 32), (52, 24)):
+        d.line((x - 2, 46, x - 2, top), fill="white", width=6)
+    return img
+
+
+class DesktopApp:
+    """The dashboard window, the widget window and (on Windows) the tray icon."""
+
+    def __init__(self, webview, app, url: str, start_with_widget: bool):
+        self.webview, self.app, self.url = webview, app, url
+        self.widget_url = url.replace("/?t=", "/widget.html?t=", 1)
+        self.widget = None
+        self.tray = None
+        self.quitting = False
+        self.main_hidden = start_with_widget
+        self.main = webview.create_window("AI Token Tracker", url, width=1320, height=900, min_size=(420, 560),
+                                          hidden=start_with_widget)
+        self.main.events.closing += self._main_closing
+        app.on_widget = self.toggle_widget
+        app.on_show = self.show_main
+        app.on_show_widget = self.show_widget
+        if start_with_widget:
+            self.show_widget()
+
+    # -- windows
+    def show_main(self):
+        self.main_hidden = False
+        self.main.show()
+        try:
+            self.main.restore()
+        except Exception:
+            pass
+
+    def toggle_widget(self):
+        if self.widget is not None:
+            self.widget.destroy()
+        else:
+            self.show_widget()
+
+    def show_widget(self):
+        if self.widget is not None:
+            self.widget.show()
+            return
+        self.widget = self.webview.create_window("AI Tokens", self.widget_url, width=340, height=560,
+                                                 min_size=(260, 320), on_top=True)
+        self.widget.events.closed += self._widget_closed
+
+    def _widget_closed(self):
+        self.widget = None
+        if not self.quitting and self.tray is None and self.main_hidden:
+            self.quit()  # nothing left on screen and no tray icon: really quit
+
+    def _main_closing(self):
+        if self.quitting:
+            return True
+        if self.tray is not None or self.widget is not None:
+            self.main.hide()  # keep running for the widget / tray icon
+            self.main_hidden = True
+            return False
+        return True
+
+    def quit(self):
+        self.quitting = True
+        if self.tray is not None:
+            self.tray.stop()
+        for w in list(self.webview.windows):
+            try:
+                w.destroy()
+            except Exception:
+                pass
+
+    # -- tray icon (Windows; macOS keeps its Dock icon)
+    def start_tray(self):
+        if sys.platform != "win32":
+            return
+        try:
+            import pystray
+            image = _tray_image()
+        except Exception:
+            return
+        menu = pystray.Menu(
+            pystray.MenuItem("Open dashboard", lambda: self.show_main(), default=True),
+            pystray.MenuItem("Show / hide widget", lambda: self.toggle_widget()),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Quit", lambda: self.quit()))
+        self.tray = pystray.Icon("AITokenTracker", image, "AI Token Tracker", menu)
+        threading.Thread(target=self.tray.run, daemon=True).start()
+
+
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    start_with_widget = "--widget" in argv
+    if _focus_running_copy(start_with_widget):
+        return 0  # the app was already open; it has come to the front
     httpd, app, url = start()
     try:
         import webview  # optional dependency: pip install "ai-token-tracker[app]"
@@ -37,23 +152,28 @@ def main(argv: list[str] | None = None) -> int:
     if webview is not None:
         try:
             webview.settings["ALLOW_DOWNLOADS"] = True  # "Export CSV"
-            window = webview.create_window("AI Token Tracker", url, width=1320, height=900, min_size=(420, 560))
+            desktop = DesktopApp(webview, app, url, start_with_widget)
 
             def close_for_update():
                 app.exit_event.wait()
-                window.destroy()  # an update is being installed; it restarts the app
+                desktop.quit()  # an update is being installed; it restarts the app
 
             threading.Thread(target=close_for_update, daemon=True).start()
+            desktop.start_tray()
             # Not private mode, and a fixed storage folder: the dashboard remembers your
             # period, theme and hidden tools between launches.
             storage = app_data_dir() / "webview"
             storage.mkdir(parents=True, exist_ok=True)
             webview.start(private_mode=False, storage_path=str(storage))
+            if desktop.tray is not None:
+                desktop.tray.stop()
             httpd.shutdown()
             return 0
         except Exception as exc:  # no GUI backend on this system: fall back to the browser
             print(f"Native window unavailable ({exc}); opening your browser instead.", file=sys.stderr)
 
+    if start_with_widget:
+        url = url.replace("/?t=", "/widget.html?t=", 1)
     return serve_in_browser(httpd, app, url, open_browser=True, idle_exit=True)
 
 
@@ -76,6 +196,13 @@ def serve_in_browser(httpd, app, url: str, open_browser: bool, idle_exit: bool) 
     print("Keep this window open while you use the dashboard. Press Ctrl+C to stop.", flush=True)
     launcher = None
     opened_at = time.monotonic()
+
+    def open_again():  # someone started the app again: open another tab instead of a second copy
+        extra = _launcher_file(url.replace("/widget.html?t=", "/?t=", 1))
+        webbrowser.open(extra.as_uri())
+        threading.Timer(60, lambda: extra.unlink(missing_ok=True)).start()
+
+    app.on_show = open_again
     if open_browser:
         launcher = _launcher_file(url)
         webbrowser.open(launcher.as_uri())

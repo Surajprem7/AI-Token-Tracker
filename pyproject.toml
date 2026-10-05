@@ -12,8 +12,10 @@ dependencies = []
 license = "MIT"
 
 [project.optional-dependencies]
-# Native app window instead of a browser tab (Edge WebView2 on Windows, WebKit on macOS).
-app = ["pywebview>=5", "certifi", "zstandard"]
+# Native app window instead of a browser tab (Edge WebView2 on Windows, WebKit on macOS),
+# plus the tray icon on Windows and reading Zed's compressed threads.
+app = ["pywebview>=5", "certifi", "zstandard",
+       "pystray; sys_platform == 'win32'", "Pillow; sys_platform == 'win32'"]
 
 [project.scripts]
 ai-tokens = "ai_token_tracker.cli:main"

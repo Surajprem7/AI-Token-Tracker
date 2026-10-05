@@ -360,3 +360,24 @@ details[open] > summary .caret { transform: rotate(90deg); }
 .palette li .kind { font-size: 11px; color: var(--muted); min-width: 64px; }
 .palette li[aria-selected="true"], .palette li:hover { background: var(--surface-2); }
 .palette-hint { padding: 8px 14px; border-top: 1px solid var(--border); }
+
+/* ---- widget (small always-on-top window) ---- */
+body.widget { min-width: 0; }
+.w-main { padding: 12px 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; max-width: 520px; margin: 0 auto; }
+.w-label { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; }
+.w-big { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.w-sub { color: var(--ink-2); font-size: 12.5px; }
+.w-today .share-bar { margin: 8px 0 6px; }
+.w-tools { list-style: none; margin: 0; padding: 0; display: grid; gap: 3px; font-size: 12.5px; }
+.w-tools li { display: flex; align-items: center; gap: 6px; }
+.w-tools .name { flex: 1; }
+.w-title { font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w-limits { display: grid; gap: 8px; }
+.w-limits .plan-row .top { font-size: 12px; }
+.w-limits .plan-row .meter { height: 6px; margin: 4px 0 2px; }
+.w-limits .plan-row .when { font-size: 11px; }
+.w-incident { margin: 0; font-size: 12px; color: #d03b3b; }
+.w-foot { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--grid); padding-top: 8px; }
+.w-foot .text-btn { margin-left: 0; }
+.switch-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 14px; cursor: pointer; }
+.switch-row input { width: 16px; height: 16px; accent-color: var(--accent); }

@@ -21,6 +21,9 @@
   </nav>
   <div class="top-actions">
     <span class="updated" id="updated"></span>
+    <button class="icon-btn" id="widgetBtn" title="Small always-on-top widget" aria-label="Show widget">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><rect x="12" y="11" width="6" height="6" rx="1.5" fill="currentColor"/></svg>
+    </button>
     <button class="icon-btn" id="searchBtn" title="Search (Ctrl+K)" aria-label="Search">
       <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 16l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
     </button>
@@ -199,6 +202,13 @@
           Only the latest version number is fetched; nothing about your usage is sent.</p>
       </article>
       <article class="card span-5">
+        <div class="card-head"><h2>Widget</h2></div>
+        <p>A small window that stays on top of your other windows, with today's tokens, your latest session and plan limits.</p>
+        <button class="btn" id="widgetOpen">Show widget</button>
+        <label class="switch-row" id="autostartRow" hidden><input type="checkbox" id="autostart"> Show the widget when the computer starts</label>
+        <p class="note" id="autostartNote"></p>
+      </article>
+      <article class="card span-7">
         <div class="card-head"><h2>Track any other AI</h2></div>
         <p>Log usage from any AI tool or script. It shows up here like the built-in tools.</p>
         <pre><code>ai-tokens --add ChatGPT gpt-5 1200 350 --prompt "draft email"</code></pre>
@@ -209,7 +219,7 @@ log_usage("My app", r.model, r.usage.input_tokens, r.usage.output_tokens)</code>
       <article class="card span-5">
         <div class="card-head"><h2>Privacy</h2></div>
         <p>Everything stays on this computer. The tracker only reads the log files your AI tools already write, and this page is served from your own machine.</p>
-        <p class="muted small">It connects to the internet only to check GitHub for app updates, to ask each AI company for your plan limits (only for AIs logged in here; each login goes only to its own company), to download Cursor's usage list from cursor.com (if Cursor is logged in), to read public status pages, and, when you click it, to download the latest prices.</p>
+        <p class="muted small">It connects to the internet only to check GitHub for app updates, to ask each AI company for your plan limits (only for AIs logged in here; each login goes only to its own company), to download Cursor's usage list from cursor.com (if Cursor is logged in), to read public status pages, to get exchange rates (only if you pick a currency other than dollars), and, when you click it, to download the latest prices.</p>
       </article>
     </div>
   </section>

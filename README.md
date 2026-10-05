@@ -3,8 +3,8 @@
 A small desktop app (plus a command-line tool) that shows how many tokens you spend with your AI tools, and roughly what they cost:
 per session, per prompt, per AI tool, per engine (model), per app and per project.
 
-It reads the log files the AI tools already save on your computer. It needs **no API keys, no login and no internet**.
-It only reads those files. It never changes them and never sends anything anywhere.
+It reads the log files the AI tools already save on your computer. It needs **no API keys and no account**.
+It only reads those files and never changes them. (A few optional extras use the internet, see Privacy.)
 
 ## Which AIs it tracks
 
@@ -17,13 +17,26 @@ It only reads those files. It never changes them and never sends anything anywhe
 | **OpenCode** | `~/.local/share/opencode/opencode.db` (and older `storage/` files) | none |
 | **Cline** app / CLI | `~/.cline/data/sessions/` | none |
 | **Cline, Roo Code, Kilo Code** in VS Code, Cursor, Windsurf, VSCodium, Trae or Kiro | the editor's `User/globalStorage/<extension>/tasks/` folder (Windows `%APPDATA%\Code\…`, macOS `~/Library/Application Support/Code/…`, Linux `~/.config/Code/…`) | none |
+| **Cursor** | your usage list from cursor.com, using Cursor's own saved login (Cursor keeps no token log on your computer) | be logged in to Cursor |
+| **GitHub Copilot** CLI and Copilot app | `~/.copilot/session-store.db` | none |
+| **Kiro** | Kiro's `globalStorage/kiro.kiroagent/dev_data/devdata.sqlite` | none |
+| **Zed** agent | Zed's `threads/threads.db` | none |
+| **Goose** | Goose's `sessions/sessions.db` | none |
+| **Droid** (Factory) | `~/.factory/sessions/` | none |
+| **Grok Build** | `~/.grok/sessions/` | none |
+| **Kimi CLI / Kimi Code** | `~/.kimi/sessions/`, `~/.kimi-code/sessions/` | none |
+| **CodeBuddy, WorkBuddy** | `~/.codebuddy/projects/`, `~/.workbuddy/projects/` | none |
+| **Pi, oh-my-pi, OmO** | `~/.pi`, `~/.omp`, `~/.omo` `/agent/sessions/` | none |
+| **MiniMax Code, Craft Agents, Hermes Agent, AnythingLLM** | their own session folders or databases | none |
+| **LM Studio** (local models, cost 0) | `~/.lmstudio/server-logs/` | none |
 | **Any other AI** (ChatGPT/OpenAI API, Anthropic API, Ollama, Grok, your own scripts…) | `~/.ai-token-tracker/usage/*.jsonl` or `*.csv` | log it yourself, see below |
 
-Roo Code and Kilo Code don't log which model they used. For those, the tracker shows the cost figure the extension recorded itself.
+Roo Code and Kilo Code don't log the model on every request. The tracker looks it up in the task's history, or uses the cost the extension recorded.
+Goose, Droid, Craft Agents and Hermes save only totals per session, and Kiro and LM Studio save no session at all (they're grouped by day).
 `ai-tokens --sources` (or the Sources page) shows which of these it found on your computer.
 
-Chats on the ChatGPT, claude.ai or Gemini websites and mobile apps, and tools such as GitHub Copilot or Cursor, don't reveal token counts.
-Nothing can track those automatically. If you know the numbers, you can still add them by hand.
+Chats on the ChatGPT, claude.ai or Gemini websites and mobile apps don't reveal token counts, so nothing can track those exactly.
+The **Plan limits** card still shows how much of each subscription they used. If you know the numbers, you can also add them by hand.
 
 ### Adding any other AI
 
@@ -63,21 +76,42 @@ It uses the Edge WebView2 window built into Windows 10/11 and a WebKit window on
 - Top models with their share and cost
 - Tables by day, project, model, AI tool or app, sortable, with **CSV export**
 
-**Sessions**: search across prompts, projects and models, and sort by newest, most tokens or highest cost.
-Click a session to see each prompt, and a prompt to see every API call.
+- Drag the cards (or use the arrow keys on their handle) to arrange them; pick a **custom date range**; enlarge the usage chart
 
-**Sources**: shows which AI tools were found and where. It also shows where the price list came from, with an *Update prices online* button.
+**Sessions**: cost per session and per prompt, cache hit rate, git commits, active time and repeated prompts at the top.
+Search across prompts, projects and models, and sort by newest, most tokens or highest cost.
+Each session shows badges (commits, costly, repeated prompts), its cache savings, the **command to continue it** (Claude Code, Codex, Grok)
+and the commits made while it was active. Click a prompt to see every API call.
 
+**Insights**
+- *What the tokens produced*: git commits made during AI sessions, and the AI cost per commit, by project
+- *Context size*: CLAUDE.md, AGENTS.md, GEMINI.md and rules files that are added to every message, with estimated tokens
+- *Skills*: which Claude Code skills you use, how often, and what the replies that ran them cost
+- *Cache savings*: how much prompt caching saved, by model
+
+**Sources**: shows which AI tools were found and where, the price list, updates, the widget and *start with the computer*.
+
+Press **Ctrl+K** (⌘K on a Mac) to find any session, prompt, project, model or page. Costs can be shown in **15 currencies**.
 It has light and dark themes (following your system, or switched by hand), works on narrow windows, and refreshes itself every minute.
 
-## Claude plan usage
+## Widget and tray icon
 
-If Claude Code is logged in on your computer, the first page also shows how much of your **Claude plan** you've used:
-the current 5-hour window and this week. These are the same numbers Claude shows under Settings → Usage.
-They cover everything on your account, including cloud sessions, claude.ai and the phone app.
-They're a share of your plan's limits, not exact tokens, because Anthropic doesn't share per-session tokens for subscriptions.
-The app reads Claude Code's saved login (never stores it) and sends it only to Anthropic.
-This uses the same unpublished usage endpoint Claude Code uses, so it may need an update if Anthropic changes it.
+The widget button (top right) opens a small window that **stays on top** of your other windows: today's tokens and cost,
+your latest session and your plan limits. On Windows there is also a **tray icon** near the clock (open the dashboard, show the widget, quit);
+with it, closing the dashboard keeps the app running in the tray. Turn on *Show the widget when the computer starts* on the Sources page
+to have it appear when you log in. Opening the app again while it runs just brings it to the front.
+
+## Plan limits and outages
+
+The first page shows how much of each **subscription's limits** you've used, for every AI that's logged in on your computer:
+**Claude** (5-hour window, this week), **ChatGPT/Codex**, **Gemini**, **Cursor**, **GitHub Copilot** and **Kimi**.
+These are the same numbers each company shows on its own usage page, and they cover everything on that account
+(for Claude: cloud sessions, claude.ai and the phone app too). They're shares of your plan, not exact tokens.
+
+Each tool's own saved login is read (never stored by us) and sent only to that company. An expired login is never refreshed by us;
+open the tool once and it refreshes itself. These are the endpoints the tools themselves use; they aren't published, so they may need an update if a company changes them.
+
+When Claude, OpenAI, Cursor or GitHub report an incident on their public status page, a banner says so, so a missing number isn't mistaken for a tracker problem.
 
 ## Cost estimates
 
@@ -115,7 +149,7 @@ This is the quickest way to try it before the installers are built.
 1. Install Python from [python.org](https://www.python.org/downloads/). Keep the "py launcher" option ticked.
 2. Open **PowerShell** in the folder where you saved the `.whl` file and run:
    ```powershell
-   py -m pip install --user "ai_token_tracker-2.3.0-py3-none-any.whl[app]"
+   py -m pip install --user "ai_token_tracker-3.0.0-py3-none-any.whl[app]"
    py -m ai_token_tracker            # opens the dashboard window
    py -m ai_token_tracker --stats    # command-line summary
    ```
@@ -123,7 +157,7 @@ This is the quickest way to try it before the installers are built.
 
 **macOS**
 ```bash
-python3 -m pip install --user "ai_token_tracker-2.3.0-py3-none-any.whl[app]"
+python3 -m pip install --user "ai_token_tracker-3.0.0-py3-none-any.whl[app]"
 python3 -m ai_token_tracker            # opens the dashboard window
 ```
 If macOS doesn't have Python yet, `python3` offers to install the Command Line Tools, or you can use [python.org](https://www.python.org/downloads/).
@@ -176,7 +210,10 @@ To ship an update to everyone, bump `__version__` in `src/ai_token_tracker/__ini
 ## Privacy and security
 
 - The tracker only **reads** log files. It never changes them, and it has no account, telemetry or cloud sync.
-- Its only network requests: the update check to GitHub each time the app opens (the latest version number; nothing about your usage), your Claude plan usage from Anthropic (if Claude Code is logged in), and, when you ask, the price-list download.
+- Its network requests: the update check to GitHub each time the app opens (the latest version number; nothing about your usage);
+  plan limits from each AI company whose tool is logged in here (each login goes only to its own company); Cursor's usage list from cursor.com (if Cursor is logged in);
+  public status pages; exchange rates (only if you pick a currency other than dollars); and, when you ask, the price-list download.
+- Git commits are read with git on your computer: only your own commits' time, short hash and title.
 - The dashboard is served on `127.0.0.1` only. Each launch gets a random access token, and requests from other websites are refused.
 - Prompt text appears only in your own dashboard, clipped to a short preview.
 
@@ -189,8 +226,9 @@ python -m unittest discover -s tests   # reader tests for every AI tool
 ## Credits
 
 - Interface ideas came from studying [TokenTracker](https://github.com/xiufengsun/TokenTracker) (MIT):
-  a period switcher with a big total, a share bar, a heatmap and trend charts, and a bundled price list that can be updated.
-  No code or assets were copied. Everything here was written from scratch.
+  a period switcher with a big total, a share bar, a heatmap and trend charts, a bundled price list, plan limits for several AIs,
+  status alerts, session insights, skills and context-size views, and a widget. File formats of the AI tools were learned partly
+  from its documentation comments. No code or assets were copied. Everything here was written from scratch.
 - Model prices come from [LiteLLM](https://github.com/BerriAI/litellm)'s public price list (MIT).
 
 To build the apps, open **Actions → Build apps → Run workflow** in GitHub, or push a tag such as `v2.3.0` to publish a Release.

@@ -1051,6 +1051,7 @@ function paletteItems(q) {
     { kind: "Action", label: "Refresh now", run: () => { load(true); loadPlan(true); } },
     { kind: "Action", label: "Switch light / dark theme", run: () => $("theme").click() },
     { kind: "Action", label: "Check for updates", run: () => checkUpdates(true) },
+    { kind: "Action", label: "Show widget", run: showWidget },
     ...["today", "7", "30", "90", "all"].map((p) => ({ kind: "Period", label: periodRange(p).label, run: () => setPeriod(p) })),
   ];
   if (d) {
@@ -1106,6 +1107,37 @@ function openSession(s) {
     if (node) { node._fill(); node.open = true; node.scrollIntoView({ block: "start" }); node.querySelector("summary").focus(); return; }
     if ($("moreSessions").hidden) return;
     state.shown += 50; renderSessions();
+  }
+}
+
+/* ---------------------------------------------------------------- widget & start with computer */
+
+async function showWidget() {
+  const res = await fetch("/api/widget", { method: "POST", headers: { "X-Token": TOKEN } }).then((r) => r.json()).catch(() => ({}));
+  if (!res.native) {  // browser mode: a small separate window (browsers can't keep it on top)
+    window.open("/widget.html?t=" + encodeURIComponent(TOKEN), "ai-token-tracker-widget", "popup,width=340,height=560");
+  }
+}
+
+async function loadAutostart() {
+  let st;
+  try { st = await (await fetch("/api/autostart", { headers: { "X-Token": TOKEN } })).json(); } catch { return; }
+  $("autostartRow").hidden = !st.available;
+  $("autostart").checked = !!st.enabled;
+  $("autostartNote").textContent = st.available ? "" : "Starting with the computer works with the installed app.";
+}
+
+async function setAutostart(enabled) {
+  try {
+    const res = await fetch("/api/autostart", { method: "POST", headers: { "X-Token": TOKEN, "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }) });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error || res.statusText);
+    $("autostart").checked = !!body.enabled;
+    toast(body.enabled ? "The widget will open when you log in." : "It won't start with the computer any more.");
+  } catch (err) {
+    toast(err.message);
+    loadAutostart();
   }
 }
 
@@ -1243,6 +1275,10 @@ function init() {
   applyCardOrder();
   wireCardDrag();
   $("searchBtn").onclick = openPalette;
+  $("widgetBtn").onclick = showWidget;
+  $("widgetOpen").onclick = showWidget;
+  $("autostart").onchange = (e) => setAutostart(e.target.checked);
+  loadAutostart();
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); $("palette").hidden ? openPalette() : closePalette(); }
     else if (e.key === "Escape" && !$("palette").hidden) closePalette();

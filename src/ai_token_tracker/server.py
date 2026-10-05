@@ -18,7 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import __version__, context, cursor_usage, limits, outcomes, plan, pricing, rates, updater
+from . import __version__, autostart, context, cursor_usage, limits, outcomes, plan, pricing, rates, updater
 from .core import Session, default_roots, load_sessions
 from .sources import data_signature, source_status
 
@@ -115,8 +115,13 @@ class Dashboard:
         self.payload: bytes = b""
         self.signature = None
         self.cwds: list[str] = []  # project folders of recent sessions, newest first
+        self.sessions: list[Session] = []
         self.last_ping = time.monotonic()
         self.exit_event = threading.Event()  # set when an update needs the app to quit
+        # Set by the desktop app: show/hide the widget, bring the dashboard window forward.
+        self.on_widget = None
+        self.on_show = None
+        self.on_show_widget = None
 
     def data(self, force: bool = False) -> bytes:
         """The dashboard JSON; logs are re-read only when a log file changed (or when forced)."""
@@ -126,11 +131,40 @@ class Dashboard:
             signature = data_signature(self.roots)
             if force or not self.payload or signature != self.signature:
                 sessions = load_sessions(self.roots)
+                self.sessions = sessions
                 recent = sorted((s for s in sessions if s.cwd and s.end), key=lambda s: s.end, reverse=True)
                 self.cwds = [s.cwd for s in recent][:200]
                 self.payload = json.dumps(build_payload(sessions, self.roots), separators=(",", ":")).encode()
                 self.signature = signature
             return self.payload
+
+
+    def summary(self) -> dict:
+        """The few numbers the widget shows: today, the latest session and plan limits."""
+        self.data()
+        now = datetime.now().astimezone()
+        midnight = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        today: dict[str, list] = {}
+        latest = None
+        for s in self.sessions:
+            for c in s.calls:
+                if c.timestamp and c.timestamp >= midnight:
+                    t = today.setdefault(s.tool, [0, 0.0])
+                    t[0] += c.usage.total
+                    t[1] += c.usage.cost
+            if s.end and (latest is None or s.end > latest.end):
+                latest = s
+        tools = sorted(({"tool": k, "tokens": v[0], "cost": round(v[1], 6)} for k, v in today.items()),
+                       key=lambda r: -r["tokens"])
+        out = {"today": {"tokens": sum(r["tokens"] for r in tools), "cost": round(sum(r["cost"] for r in tools), 6),
+                         "tools": tools},
+               "latest": None, "limits": limits._cache.get("value")}
+        if latest is not None:
+            u = latest.usage
+            out["latest"] = {"title": latest.title[:160], "tool": latest.tool, "project": latest.project,
+                             "tokens": u.total, "cost": round(u.cost, 6), "prompts": len(latest.turns),
+                             "end": int(latest.end.timestamp() * 1000)}
+        return out
 
 
 def make_handler(app: Dashboard, port_ref: list):
@@ -180,6 +214,10 @@ def make_handler(app: Dashboard, port_ref: list):
                         return self._send(500, json.dumps({"error": str(exc)}).encode())
                 if url.path == "/api/plan":
                     return self._send(200, json.dumps(plan.status(force="force" in query)).encode())
+                if url.path == "/api/summary":
+                    return self._send(200, json.dumps(app.summary()).encode())
+                if url.path == "/api/autostart":
+                    return self._send(200, json.dumps(autostart.status()).encode())
                 if url.path == "/api/rates":
                     return self._send(200, json.dumps(rates.get(force="force" in query)).encode())
                 if url.path == "/api/context":
@@ -204,6 +242,19 @@ def make_handler(app: Dashboard, port_ref: list):
             if not self._host_ok():
                 return self._send(403, b'{"error":"bad host"}')
             url = urlparse(self.path)
+            if url.path == "/api/focus" and self.headers.get("X-AITT") == "focus":
+                # A second launch of the app asks this one to come forward. Needs no token (it has none),
+                # but web pages can't send the custom header without a preflight we never answer, and
+                # all it can do is show a window.
+                try:
+                    length = min(int(self.headers.get("Content-Length") or 0), 100)
+                    widget = bool(json.loads(self.rfile.read(length) or b"{}").get("widget"))
+                except (ValueError, AttributeError):
+                    widget = False
+                handler = (app.on_show_widget if widget else None) or app.on_show
+                if handler is not None:
+                    threading.Thread(target=handler, daemon=True).start()
+                return self._send(200, b'{"app":"ai-token-tracker"}')
             if not self._api_allowed(parse_qs(url.query)):
                 return self._send(403, b'{"error":"bad token"}')
             if url.path == "/api/update/install":
@@ -215,6 +266,19 @@ def make_handler(app: Dashboard, port_ref: list):
                     # Let this reply reach the page, then quit so the update can replace the app.
                     threading.Timer(1.5, app.exit_event.set).start()
                 return self._send(200, json.dumps({"message": message}).encode())
+            if url.path in ("/api/widget", "/api/show"):
+                handler = app.on_widget if url.path == "/api/widget" else app.on_show
+                if handler is None:
+                    return self._send(200, b'{"native":false}')
+                threading.Thread(target=handler, daemon=True).start()
+                return self._send(200, b'{"native":true}')
+            if url.path == "/api/autostart":
+                try:
+                    length = min(int(self.headers.get("Content-Length") or 0), 1000)
+                    body = json.loads(self.rfile.read(length) or b"{}")
+                    return self._send(200, json.dumps(autostart.set_enabled(bool(body.get("enabled")))).encode())
+                except Exception as exc:
+                    return self._send(500, json.dumps({"error": str(exc)}).encode())
             if url.path == "/api/update-prices":
                 try:
                     n = pricing.update_prices()
