@@ -251,6 +251,8 @@ def make_handler(app: Dashboard, port_ref: list):
                     widget = bool(json.loads(self.rfile.read(length) or b"{}").get("widget"))
                 except (ValueError, AttributeError):
                     widget = False
+                if app.exit_event.is_set():  # quitting for an update: the new copy should wait, not hand over
+                    return self._send(200, b'{"app":"ai-token-tracker","closing":true}')
                 handler = (app.on_show_widget if widget else None) or app.on_show
                 if handler is not None:
                     threading.Thread(target=handler, daemon=True).start()

@@ -2,6 +2,7 @@
 
 import json
 import sys
+import threading
 import tempfile
 import unittest
 import urllib.request
@@ -126,6 +127,14 @@ class SingleInstanceTests(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as err:
             urllib.request.urlopen(req, timeout=2)
         self.assertEqual(err.exception.code, 403)
+
+    def test_copy_that_is_quitting_for_an_update_is_not_reused(self):
+        httpd, app, url = server.start(port=0)
+        self.addCleanup(httpd.server_close)
+        app.exit_event.set()
+        threading.Timer(0.6, httpd.shutdown).start()
+        with mock.patch.object(server, "DEFAULT_PORT", httpd.server_address[1]):
+            self.assertFalse(gui._focus_running_copy(widget=False))
 
     def test_nothing_running(self):
         with mock.patch.object(server, "DEFAULT_PORT", 1):

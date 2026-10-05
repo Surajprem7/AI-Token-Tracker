@@ -36,11 +36,18 @@ def _focus_running_copy(widget: bool) -> bool:
 
     req = urllib.request.Request(f"http://127.0.0.1:{DEFAULT_PORT}/api/focus", method="POST",
                                  data=json.dumps({"widget": widget}).encode(), headers={"X-AITT": "focus"})
-    try:
-        with urllib.request.urlopen(req, timeout=2) as resp:  # noqa: S310 - our own local server
-            return json.loads(resp.read() or b"{}").get("app") == "ai-token-tracker"
-    except Exception:
-        return False
+    for _ in range(30):
+        try:
+            with urllib.request.urlopen(req, timeout=2) as resp:  # noqa: S310 - our own local server
+                reply = json.loads(resp.read() or b"{}")
+        except Exception:
+            return False
+        if reply.get("app") != "ai-token-tracker":
+            return False
+        if not reply.get("closing"):
+            return True
+        time.sleep(0.5)  # the old copy is quitting for an update; start once it's gone
+    return False
 
 
 def _tray_image():
