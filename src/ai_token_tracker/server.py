@@ -17,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import __version__, pricing, updater
+from . import __version__, plan, pricing, updater
 from .core import Session, default_roots, load_sessions
 from .sources import data_signature, source_status
 
@@ -137,6 +137,8 @@ def make_handler(app: Dashboard, port_ref: list):
                         return self._send(200, app.data(force="refresh" in query))
                     except Exception as exc:  # report instead of a blank page
                         return self._send(500, json.dumps({"error": str(exc)}).encode())
+                if url.path == "/api/plan":
+                    return self._send(200, json.dumps(plan.status(force="force" in query)).encode())
                 if url.path == "/api/update":
                     return self._send(200, json.dumps(updater.check(force="force" in query)).encode())
                 if url.path == "/api/ping":

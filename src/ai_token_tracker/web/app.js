@@ -699,6 +699,40 @@ function renderSources() {
     + "Updating downloads LiteLLM's public price list. Nothing about your usage is sent.";
 }
 
+/* ---------------------------------------------------------------- Claude plan */
+
+function resetsIn(iso) {
+  const t = Date.parse(iso || "");
+  if (!t) return "";
+  const mins = Math.max(0, Math.round((t - Date.now()) / 60000));
+  const text = mins < 60 ? `${mins} min` : mins < 48 * 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${Math.round(mins / 1440)} days`;
+  return `Resets in ${text} (${new Date(t).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })})`;
+}
+
+async function loadPlan(force) {
+  let p;
+  try {
+    const res = await fetch("/api/plan" + (force ? "?force=1" : ""), { headers: { "X-Token": TOKEN } });
+    p = await res.json();
+  } catch {
+    return;
+  }
+  const card = $("planCard");
+  card.hidden = false;
+  $("planName").textContent = p.plan ? `${p.plan} plan` : "";
+  if (!p.available) {
+    $("planRows").innerHTML = `<p class="muted">${esc(p.message || "Plan usage isn't available.")}</p>`;
+    return;
+  }
+  $("planRows").innerHTML = p.windows.map((w) => {
+    const level = w.percent >= 90 ? "full" : w.percent >= 70 ? "warn" : "";
+    return `<div class="plan-row ${level}"><div class="top"><span>${esc(w.label)}</span><span class="pct">${Math.round(w.percent)}% used</span></div>
+      <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(w.percent)}" aria-label="${esc(w.label)}">
+        <span style="width:${w.percent.toFixed(1)}%"></span></div>
+      <div class="when">${esc(resetsIn(w.resets_at))}</div></div>`;
+  }).join("");
+}
+
 /* ---------------------------------------------------------------- updates */
 
 const updates = { status: null, installing: false, autoTried: false };
@@ -804,7 +838,7 @@ function init() {
   wireSegment("trendGroup", "trendGroup");
   wireSegment("trendMetric", "trendMetric");
   wireSegment("breakdownTab", "breakdown", () => { state.sort = { key: null, dir: -1 }; });
-  $("refresh").onclick = () => load(true);
+  $("refresh").onclick = () => { load(true); loadPlan(true); };
   $("theme").onclick = () => {
     state.theme = { auto: "light", light: "dark", dark: "auto" }[state.theme];
     store.set("theme", state.theme);
@@ -844,7 +878,8 @@ function init() {
   // Tells the local server the dashboard is still open (it quits when every tab is closed).
   setInterval(() => fetch("/api/ping", { headers: { "X-Token": TOKEN } }).catch(() => {}), 45000);
   $("checkNow").onclick = () => checkUpdates(true);
-  load(false).then(() => checkUpdates(false));
+  load(false).then(() => { checkUpdates(false); loadPlan(false); });
+  setInterval(() => { if (!document.hidden) loadPlan(false); }, 2 * 60 * 1000);
   setInterval(() => checkUpdates(false), 3 * 3600 * 1000);  // the server itself asks GitHub at most every 6 hours
 }
 

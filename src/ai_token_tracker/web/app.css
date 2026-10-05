@@ -237,6 +237,16 @@ details[open] > summary .caret { transform: rotate(90deg); }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; overflow-wrap: anywhere; }
 
+/* ---- Claude plan usage ---- */
+.plan-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 24px; }
+.plan-row .top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.plan-row .pct { font-weight: 650; font-variant-numeric: tabular-nums; }
+.plan-row .meter { height: 8px; border-radius: 4px; background: var(--surface-2); margin: 6px 0 4px; overflow: hidden; }
+.plan-row .meter span { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+.plan-row.warn .meter span { background: #fab219; }
+.plan-row.full .meter span { background: #d03b3b; }
+.plan-row .when { color: var(--muted); font-size: 12px; }
+
 /* ---- update bar & switches ---- */
 .update-bar {
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap;

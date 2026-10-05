@@ -70,6 +70,15 @@ Click a session to see each prompt, and a prompt to see every API call.
 
 It has light and dark themes (following your system, or switched by hand), works on narrow windows, and refreshes itself every minute.
 
+## Claude plan usage
+
+If Claude Code is logged in on your computer, the first page also shows how much of your **Claude plan** you've used:
+the current 5-hour window and this week. These are the same numbers Claude shows under Settings → Usage.
+They cover everything on your account, including cloud sessions, claude.ai and the phone app.
+They're a share of your plan's limits, not exact tokens, because Anthropic doesn't share per-session tokens for subscriptions.
+The app reads Claude Code's saved login (never stores it) and sends it only to Anthropic.
+This uses the same unpublished usage endpoint Claude Code uses, so it may need an update if Anthropic changes it.
+
 ## Cost estimates
 
 Every API call gets an estimated cost at pay-as-you-go **API list prices**, including cache-read and cache-write prices.
@@ -167,7 +176,7 @@ To ship an update to everyone, bump `__version__` in `src/ai_token_tracker/__ini
 ## Privacy and security
 
 - The tracker only **reads** log files. It never changes them, and it has no account, telemetry or cloud sync.
-- Its only network requests: the update check to GitHub each time the app opens (the latest version number; nothing about your usage) and, when you ask, the price-list download.
+- Its only network requests: the update check to GitHub each time the app opens (the latest version number; nothing about your usage), your Claude plan usage from Anthropic (if Claude Code is logged in), and, when you ask, the price-list download.
 - The dashboard is served on `127.0.0.1` only. Each launch gets a random access token, and requests from other websites are refused.
 - Prompt text appears only in your own dashboard, clipped to a short preview.
 
