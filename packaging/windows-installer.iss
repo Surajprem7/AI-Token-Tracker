@@ -43,6 +43,18 @@ Filename: "{app}\AITokenTracker.exe"; Description: "Open AI Token Tracker now"; 
 Filename: "{app}\AITokenTracker.exe"; Flags: nowait; Check: WizardSilent
 
 [Code]
+{ When an older app version starts this installer, the installer inherits that app's
+  PyInstaller settings, and the app it restarts would then fail with "Failed to load
+  Python DLL". This tells the restarted app to start fresh. }
+function SetEnvironmentVariable(lpName: String; lpValue: String): BOOL;
+  external 'SetEnvironmentVariableW@kernel32.dll stdcall';
+
+function InitializeSetup(): Boolean;
+begin
+  SetEnvironmentVariable('PYINSTALLER_RESET_ENVIRONMENT', '1');
+  Result := True;
+end;
+
 { The in-app updater starts this installer and then quits the app. Wait for it to be gone
   (and close it if it doesn't quit), so its files can be replaced instead of rolling back. }
 function AppIsRunning(): Boolean;

@@ -203,6 +203,21 @@ def _download(asset: dict, dest: Path) -> None:
         raise ValueError("the download is incomplete; not installing it")
 
 
+def clean_env() -> dict:
+    """Environment for programs we start (the installer, which then restarts the app).
+
+    A frozen (PyInstaller) app passes its own internal settings down to child processes.
+    If the restarted app inherited them, it would look for Python in this copy's temporary
+    folder, which is gone by then ("Failed to load Python DLL"). This drops them.
+    """
+    env = {k: v for k, v in os.environ.items() if not k.startswith("_PYI_") and k not in ("_MEIPASS2", "_MEIPASS")}
+    env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
+    for var in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):  # PyInstaller saved the originals
+        if var + "_ORIG" in env:
+            env[var] = env.pop(var + "_ORIG")
+    return env
+
+
 def _note_attempt(version: str) -> None:
     """Count install attempts per version (if we're still on the old one later, it failed)."""
     cache = _load_cache()
@@ -235,7 +250,7 @@ def install(release: dict | None = None) -> str:
         _download(asset, setup)
         flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
         # /VERYSILENT shows no window; the installer waits for this app to quit, then restarts it.
-        subprocess.Popen([str(setup), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"],
+        subprocess.Popen([str(setup), "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS"], env=clean_env(),
                          creationflags=flags, close_fds=True)
         return f"Installing version {release['version']}. The app will restart in a moment."
     if method == "mac-app":
@@ -253,7 +268,8 @@ def install(release: dict | None = None) -> str:
             f'while kill -0 {os.getpid()} 2>/dev/null; do sleep 0.5; done\n'
             'rm -rf "$1.old" && mv "$1" "$1.old" && mv "$2" "$1" && rm -rf "$1.old"\n'
             'open "$1"\n', encoding="utf-8")
-        subprocess.Popen(["/bin/sh", str(script), str(bundle), str(new_app)], start_new_session=True, close_fds=True)
+        subprocess.Popen(["/bin/sh", str(script), str(bundle), str(new_app)], start_new_session=True, close_fds=True,
+                         env=clean_env())
         return f"Installing version {release['version']}. The app will reopen in a moment."
     if method == "pip":
         wheel = work / Path(asset["url"]).name

@@ -82,6 +82,16 @@ class CheckTests(Base):
                 mock.patch.object(updater, "_download"), mock.patch.object(updater.subprocess, "Popen") as popen:
             updater.install(rel)
         self.assertIn("/VERYSILENT", popen.call_args[0][0])
+        env = popen.call_args[1]["env"]
+        self.assertEqual(env["PYINSTALLER_RESET_ENVIRONMENT"], "1")
+
+    def test_frozen_app_settings_are_not_passed_on(self):
+        with mock.patch.dict(updater.os.environ, {"_PYI_APPLICATION_HOME_DIR": r"C:\Temp\_MEI1", "_MEIPASS2": "x",
+                                                   "LD_LIBRARY_PATH": "/tmp/_MEI1", "LD_LIBRARY_PATH_ORIG": "/usr/lib"}):
+            env = updater.clean_env()
+        self.assertNotIn("_PYI_APPLICATION_HOME_DIR", env)
+        self.assertNotIn("_MEIPASS2", env)
+        self.assertEqual(env["LD_LIBRARY_PATH"], "/usr/lib")
 
     def test_pip_copies_update_from_the_release_wheel(self):
         release = updater._release_info(fake_release(assets=["ai_token_tracker-99.0.0-py3-none-any.whl", "x.zip"]))
