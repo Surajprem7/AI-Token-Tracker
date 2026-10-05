@@ -37,7 +37,7 @@ jobs:
         run: echo "version=$(PYTHONPATH=src python -c 'import ai_token_tracker as a; print(a.__version__)')" >> "$GITHUB_OUTPUT"
       - name: Install build tools
         # Pinned: a new PyInstaller major version must not change the apps without us noticing.
-        run: python -m pip install "pyinstaller==6.22.3" build certifi
+        run: python -m pip install "pyinstaller==6.22.3" build certifi zstandard
       - name: Python package (wheel)
         if: matrix.os == 'ubuntu-latest'
         run: python -m build --wheel --outdir dist
@@ -46,7 +46,7 @@ jobs:
         run: |
           # Windows/macOS get a native app window (pywebview); Linux opens the dashboard in the browser.
           # certifi is bundled so "Update prices online" can check HTTPS certificates in the frozen app.
-          COMMON="--noconfirm --collect-data ai_token_tracker --collect-data certifi"
+          COMMON="--noconfirm --collect-data ai_token_tracker --collect-data certifi --hidden-import zstandard"
           case "${{ matrix.os }}" in
             ubuntu-latest)
               pip install .

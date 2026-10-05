@@ -13,7 +13,7 @@ license = "MIT"
 
 [project.optional-dependencies]
 # Native app window instead of a browser tab (Edge WebView2 on Windows, WebKit on macOS).
-app = ["pywebview>=5", "certifi"]
+app = ["pywebview>=5", "certifi", "zstandard"]
 
 [project.scripts]
 ai-tokens = "ai_token_tracker.cli:main"

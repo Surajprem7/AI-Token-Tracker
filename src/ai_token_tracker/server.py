@@ -17,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import __version__, plan, pricing, updater
+from . import __version__, cursor_usage, plan, pricing, updater
 from .core import Session, default_roots, load_sessions
 from .sources import data_signature, source_status
 
@@ -86,6 +86,8 @@ class Dashboard:
 
     def data(self, force: bool = False) -> bytes:
         """The dashboard JSON; logs are re-read only when a log file changed (or when forced)."""
+        # Cursor keeps no local token log: fetch its usage list in the background (at most every 15 min).
+        threading.Thread(target=cursor_usage.refresh, daemon=True).start()
         with self.lock:
             signature = data_signature(self.roots)
             if force or not self.payload or signature != self.signature:

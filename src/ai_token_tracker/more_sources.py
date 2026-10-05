@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import sys
 from datetime import datetime, timezone
@@ -333,10 +334,21 @@ def load_vscode_extension_tasks(user_dirs: list[Path] | None = None) -> list[Ses
     return out
 
 
+def _history_model(task_dir: Path) -> str:
+    """Roo Code doesn't log the model per request; its API history names it in <model> tags."""
+    try:
+        text = (task_dir / "api_conversation_history.json").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    found = re.findall(r"<model>\s*([^<\s][^<]{0,120}?)\s*</model>", text)
+    return found[-1] if found else ""
+
+
 def _load_ui_messages(path: Path, tool: str, app: str) -> Session | None:
     messages = _load_json(path)
     if not isinstance(messages, list):
         return None
+    fallback_model = ""
     s = Session(session_id=path.parent.name, project="", path=path, tool=tool)
     turn = None
     for m in messages:
@@ -364,7 +376,12 @@ def _load_ui_messages(path: Path, tool: str, app: str) -> Session | None:
             if not usage.total:
                 continue
             cost = info.get("cost")
-            model = str(info.get("model") or info.get("modelId") or f"model not logged ({tool})")
+            model = info.get("model") or info.get("modelId")
+            if not model:
+                if fallback_model == "":
+                    fallback_model = _history_model(path.parent) or f"model not logged ({tool})"
+                model = fallback_model
+            model = str(model)
             call = ApiCall(ts, model, usage, app=app,
                            reported_cost=_cost(cost))
             if turn is None:

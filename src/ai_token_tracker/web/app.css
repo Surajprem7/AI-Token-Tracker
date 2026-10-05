@@ -297,3 +297,6 @@ details[open] > summary .caret { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+.more-sources { margin-top: 12px; }
+.more-sources > summary { cursor: pointer; color: var(--muted); padding: 6px 0; }

@@ -682,12 +682,15 @@ function renderSources() {
     const i = d.tools.indexOf(name.replace(/ \(.*\)$/, ""));  // "Roo Code (VS Code)" -> "Roo Code"
     return slotColor(i >= 0 ? state.toolColor[i] : KNOWN_TOOL_SLOTS[name] || 0);
   };
-  $("sourceList").innerHTML = d.sources.map((s) => `
+  const row = (s) => `
     <div class="source"><span class="dot" style="background:${colorOf(s.tool)}"></span>
       <b>${esc(s.tool)}</b>
       <span class="badge ${s.found ? "on" : ""}">${s.found ? `${fmt(s.files)} file${s.files === 1 ? "" : "s"}` : "not found"}</span>
       <span class="how">${esc(s.how)}</span>
-      <span class="path">${s.paths.map(esc).join("<br>")}${s.also_checked ? `<br>(and ${s.also_checked} more places)` : ""}</span></div>`).join("");
+      <span class="path">${s.paths.map(esc).join("<br>")}${s.also_checked ? `<br>(and ${s.also_checked} more places)` : ""}</span></div>`;
+  const found = d.sources.filter((s) => s.found), missing = d.sources.filter((s) => !s.found);
+  $("sourceList").innerHTML = (found.length ? found.map(row).join("") : `<p class="muted">No AI tool data found yet.</p>`)
+    + (missing.length ? `<details class="more-sources"><summary>${missing.length} more supported AI tools (not on this computer)</summary>${missing.map(row).join("")}</details>` : "");
   const p = d.pricing;
   $("pricingInfo").innerHTML = `<dl class="kv">
     <dt>Price list</dt><dd>${p.source === "online" ? "Downloaded" : "Bundled with the app"}${p.updated ? `, ${esc(p.updated)}` : ""}</dd>

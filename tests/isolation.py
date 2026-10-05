@@ -10,7 +10,10 @@ from pathlib import Path
 from unittest import mock
 
 TOOL_VARS = ("CLAUDE_CONFIG_DIR", "CODEX_HOME", "GEMINI_CLI_HOME", "QWEN_HOME", "CLINE_DIR", "CLINE_DATA_DIR",
-             "CLINE_SESSION_DATA_DIR", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "APPDATA", "AI_TOKEN_TRACKER_DIR")
+             "CLINE_SESSION_DATA_DIR", "XDG_DATA_HOME", "XDG_CONFIG_HOME", "APPDATA", "AI_TOKEN_TRACKER_DIR",
+             "LOCALAPPDATA", "KIMI_HOME", "KIMI_CODE_HOME", "CODEBUDDY_HOME", "WORKBUDDY_HOME", "PI_CODING_AGENT_DIR",
+             "OMP_HOME", "OMO_HOME", "MINIMAX_HOME", "CRAFT_CONFIG_DIR", "DROID_SESSIONS_DIR", "FACTORY_DIR",
+             "GROK_HOME", "COPILOT_HOME", "GOOSE_PATH_ROOT", "HERMES_HOME", "ANYTHINGLLM_DB", "LM_STUDIO_HOME")
 
 
 def isolate(test, tmp: Path, **overrides: str) -> None:
@@ -19,6 +22,7 @@ def isolate(test, tmp: Path, **overrides: str) -> None:
     home.mkdir(parents=True, exist_ok=True)
     env = {k: v for k, v in os.environ.items() if k not in TOOL_VARS}
     env.update(HOME=str(home), USERPROFILE=str(home), APPDATA=str(home / "AppData" / "Roaming"),
+               LOCALAPPDATA=str(home / "AppData" / "Local"),
                XDG_CONFIG_HOME=str(home / ".config"), XDG_DATA_HOME=str(home / ".local" / "share"))
     env.update(overrides)
     patcher = mock.patch.dict(os.environ, env, clear=True)

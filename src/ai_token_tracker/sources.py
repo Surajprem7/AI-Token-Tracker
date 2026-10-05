@@ -23,10 +23,11 @@ from .core import ApiCall, Session, Turn, Usage, parse_ts, read_jsonl
 
 def load_other_tools() -> list[Session]:
     sessions: list[Session] = []
+    from . import extra_sources as extra
     from . import more_sources as more
 
     loaders = (load_codex_sessions, load_gemini_sessions, more.load_opencode_sessions, more.load_cline_sessions,
-               more.load_vscode_extension_tasks, more.load_qwen_sessions, load_custom_sessions)
+               more.load_vscode_extension_tasks, more.load_qwen_sessions, extra.load_all, load_custom_sessions)
     for loader in loaders:
         try:
             sessions += loader()
@@ -376,17 +377,18 @@ def source_status(claude_roots: list[Path] | None = None) -> list[dict]:
     from .core import default_roots
 
     def row(tool: str, paths: list[Path], pattern: str, how: str) -> dict:
-        found = [p for p in paths if p.is_dir()]
+        found = [p for p in paths if p.is_dir() or p.is_file()]
         files = 0
         for p in found:
             try:
-                files += sum(1 for _ in p.rglob(pattern))
+                files += 1 if p.is_file() else sum(1 for _ in p.rglob(pattern))
             except OSError:
                 pass
         shown = found or paths[:1]  # where data is, or one example of where we looked
         return {"tool": tool, "paths": [str(p) for p in shown], "found": bool(found),
                 "files": files, "how": how, "also_checked": len(paths) - len(shown)}
 
+    from . import extra_sources as extra
     from . import more_sources as more
 
     claude = claude_roots if claude_roots is not None else default_roots()
@@ -406,6 +408,7 @@ def source_status(claude_roots: list[Path] | None = None) -> list[dict]:
           for ext, tool in more.VSCODE_EXTENSIONS.items()],
         row("Qwen Code", [more.qwen_dir() / "projects"], "*.jsonl",
             "Automatic. Reads Qwen Code chat logs (set QWEN_HOME if you moved them)."),
+        *[row(t.name, t.paths(), t.pattern, t.how) for t in extra.tools()],
         row("Custom log", [custom_dir()], "*.*",
             "Any other AI: `ai-tokens --add`, log_usage() in your scripts, or drop a CSV here."),
     ]
@@ -417,6 +420,7 @@ def data_signature(claude_roots: list[Path] | None = None) -> tuple:
     The dashboard re-reads logs only when this changes, so its once-a-minute refresh
     costs a folder scan, not a full parse of gigabytes of transcripts.
     """
+    from . import extra_sources as extra
     from . import more_sources as more
     from . import pricing
     from .core import default_roots
@@ -425,8 +429,23 @@ def data_signature(claude_roots: list[Path] | None = None) -> tuple:
     dirs += [codex_home() / "sessions", codex_home() / "archived_sessions", *gemini_tmp_dirs(),
              more.opencode_data_dir(), more.cline_sessions_dir(), more.qwen_dir() / "projects", custom_dir()]
     dirs += [d / "globalStorage" / ext for d in more.vscode_user_dirs() for ext in more.VSCODE_EXTENSIONS]
+    for tool in extra.tools():
+        try:
+            dirs += tool.paths()
+        except Exception:
+            pass
     count = newest = size = 0
     for d in dirs:
+        if d.is_file():  # a database: changes land in its write-ahead log first
+            for f in (d, d.with_name(d.name + "-wal")):
+                try:
+                    st = f.stat()
+                except OSError:
+                    continue
+                count += 1
+                size += st.st_size
+                newest = max(newest, st.st_mtime_ns)
+            continue
         for root, _subdirs, files in os.walk(d):
             for name in files:
                 try:
