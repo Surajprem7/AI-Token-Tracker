@@ -237,8 +237,10 @@ details[open] > summary .caret { transform: rotate(90deg); }
 .kv dt { color: var(--muted); }
 .kv dd { margin: 0; overflow-wrap: anywhere; }
 
-/* ---- Claude plan usage ---- */
-.plan-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 24px; }
+/* ---- plan limits ---- */
+.plan-rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px 28px; }
+.plan-provider { display: grid; gap: 12px; align-content: start; }
+.plan-head { display: flex; align-items: baseline; gap: 8px; }
 .plan-row .top { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
 .plan-row .pct { font-weight: 650; font-variant-numeric: tabular-nums; }
 .plan-row .meter { height: 8px; border-radius: 4px; background: var(--surface-2); margin: 6px 0 4px; overflow: hidden; }
@@ -257,8 +259,17 @@ details[open] > summary .caret { transform: rotate(90deg); }
 .update-bar .btn { margin-top: 0; }
 .update-bar a { color: var(--accent); }
 .update-bar a.btn, a.btn { color: var(--accent-ink); text-decoration: none; display: inline-block; }
-@media (min-width: 641px) { .update-bar { width: calc(100% - 48px); } }
-@media (max-width: 640px) { .update-bar { margin: 12px 16px 0; } }
+@media (min-width: 641px) { .update-bar, .status-bar { width: calc(100% - 48px); } }
+@media (max-width: 640px) { .update-bar, .status-bar { margin: 12px 16px 0; } }
+
+/* ---- service status (only shown during an incident) ---- */
+.status-bar {
+  display: flex; flex-direction: column; gap: 4px;
+  max-width: 1360px; margin: 12px auto 0; padding: 10px 16px; border-radius: 10px;
+  background: var(--surface); color: var(--ink); border: 1px solid #fab219; border-left-width: 6px;
+}
+.status-bar.major { border-color: #d03b3b; }
+.status-bar a { color: var(--accent); }
 #checkNow { margin-top: 6px; }
 
 /* ---- tooltip & toast ---- */

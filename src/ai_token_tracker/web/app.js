@@ -712,28 +712,47 @@ function resetsIn(iso) {
   return `Resets in ${text} (${new Date(t).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })})`;
 }
 
-async function loadPlan(force) {
-  let p;
-  try {
-    const res = await fetch("/api/plan" + (force ? "?force=1" : ""), { headers: { "X-Token": TOKEN } });
-    p = await res.json();
-  } catch {
-    return;
-  }
-  const card = $("planCard");
-  card.hidden = false;
-  $("planName").textContent = p.plan ? `${p.plan} plan` : "";
-  if (!p.available) {
-    $("planRows").innerHTML = `<p class="muted">${esc(p.message || "Plan usage isn't available.")}</p>`;
-    return;
-  }
-  $("planRows").innerHTML = p.windows.map((w) => {
+function planRowsHtml(windows) {
+  return windows.map((w) => {
     const level = w.percent >= 90 ? "full" : w.percent >= 70 ? "warn" : "";
     return `<div class="plan-row ${level}"><div class="top"><span>${esc(w.label)}</span><span class="pct">${Math.round(w.percent)}% used</span></div>
       <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(w.percent)}" aria-label="${esc(w.label)}">
         <span style="width:${w.percent.toFixed(1)}%"></span></div>
       <div class="when">${esc(resetsIn(w.resets_at))}</div></div>`;
   }).join("");
+}
+
+function safeStatusLink(url) {
+  return /^https:\/\/(status\.claude\.com|status\.openai\.com|status\.cursor\.com|www\.githubstatus\.com)(\/|$)/.test(url || "") ? url : "#";
+}
+
+async function loadPlan(force) {
+  let d;
+  try {
+    const res = await fetch("/api/limits" + (force ? "?force=1" : ""), { headers: { "X-Token": TOKEN } });
+    d = await res.json();
+  } catch {
+    return;
+  }
+  state.limits = d;
+  const incidents = d.incidents || [];
+  const bar = $("statusBar");
+  bar.hidden = !incidents.length;
+  bar.className = "status-bar " + (incidents.some((i) => i.level !== "minor") ? "major" : "minor");
+  bar.innerHTML = incidents.map((i) => `<span><b>${esc(i.name)}:</b> ${esc(i.description)}.
+    <a href="${safeStatusLink(i.url)}" target="_blank" rel="noopener noreferrer">Status page</a></span>`).join("")
+    + (incidents.length ? `<span class="muted small">Missing or late numbers may be caused by this, not by the tracker.</span>` : "");
+
+  const card = $("planCard");
+  const providers = d.providers || [];
+  card.hidden = !providers.length;
+  $("planName").textContent = providers.length ? `${providers.length} AI subscription${providers.length === 1 ? "" : "s"} logged in` : "";
+  $("planRows").innerHTML = providers.map((p) => `
+    <div class="plan-provider">
+      <div class="plan-head"><b>${esc(p.name)}</b>${p.plan ? `<span class="muted small">${esc(p.plan)} plan</span>` : ""}</div>
+      ${p.available ? planRowsHtml(p.windows) : `<p class="muted small">${esc(p.message || "Limits aren't available.")}</p>`}
+    </div>`).join("");
+  if (typeof renderWidget === "function") renderWidget();
 }
 
 /* ---------------------------------------------------------------- updates */
