@@ -179,7 +179,7 @@ class DatabaseToolsTests(Base):
         self.assertTrue(path.exists())
 
     def test_goose_and_hermes(self):
-        db(self.home / ".local/share/goose/sessions/sessions.db",
+        db(extra.goose_db(),
            "CREATE TABLE sessions (id TEXT, name TEXT, working_dir TEXT, model_config_json TEXT, created_at TEXT, "
            "accumulated_input_tokens INT, accumulated_output_tokens INT, accumulated_total_tokens INT);",
            [("INSERT INTO sessions VALUES ('g1','Goose job','/home/me/api','{\"model_name\":\"gpt-4o\"}',"
@@ -202,7 +202,7 @@ class DatabaseToolsTests(Base):
                   "request_token_usage": {"r1": {"input_tokens": 10, "output_tokens": 5, "cache_read_input_tokens": 100},
                                           "r2": {"input_tokens": 20, "output_tokens": 5}}}
         old = {"model": {"model": "gpt-4o"}, "cumulative_token_usage": {"input_tokens": 7, "output_tokens": 3}}
-        con_path = self.home / ".local/share/zed/threads/threads.db"
+        con_path = extra.zed_db()
         db(con_path, "CREATE TABLE threads (id TEXT, summary TEXT, updated_at TEXT, data_type TEXT, data BLOB);",
            [("INSERT INTO threads VALUES ('t1','Explain code','2026-10-01T10:00:00Z','json',?)", (json.dumps(thread).encode(),)),
             ("INSERT INTO threads VALUES ('t2','','2026-10-01T11:00:00Z','json',?)", (json.dumps(old).encode(),)),
@@ -213,7 +213,7 @@ class DatabaseToolsTests(Base):
         self.assertEqual(totals([sessions["t2"]]), (7, 3, 0, 0))
 
     def test_kiro_and_anythingllm(self):
-        db(self.home / ".config/Kiro/User/globalStorage/kiro.kiroagent/dev_data/devdata.sqlite",
+        db(extra.kiro_dev_data() / "devdata.sqlite",
            "CREATE TABLE tokens_generated (id INTEGER PRIMARY KEY, model TEXT, provider TEXT, tokens_prompt INT, "
            "tokens_generated INT, timestamp TEXT);",
            [("INSERT INTO tokens_generated VALUES (1,'CLAUDE_SONNET_4_20250514_V1_0','kiro',100,20,'2026-10-01 10:00:00')", ()),
@@ -222,7 +222,7 @@ class DatabaseToolsTests(Base):
         self.assertEqual(sorted(k.models), ["claude-sonnet-4", "kiro (model not logged)"])
         self.assertEqual(totals([k]), (150, 25, 0, 0))
 
-        db(self.home / ".config/anythingllm-desktop/storage/anythingllm.db",
+        db(extra.anythingllm_db(),
            "CREATE TABLE workspace_chats (id INTEGER PRIMARY KEY, workspaceId INT, prompt TEXT, response TEXT, "
            "createdAt TEXT, thread_id INT);",
            [("INSERT INTO workspace_chats VALUES (1, 3, 'summarise pdf', ?, '2026-10-01T10:00:00Z', NULL)",
@@ -249,7 +249,7 @@ class CursorTests(Base):
         import base64
         payload = base64.urlsafe_b64encode(json.dumps({"sub": "auth0|user_ABC"}).encode()).decode().rstrip("=")
         token = f"h.{payload}.s"
-        db(self.home / ".config/Cursor/User/globalStorage/state.vscdb",
+        db(cursor_usage.cursor_app_dir() / "User" / "globalStorage" / "state.vscdb",
            "CREATE TABLE ItemTable (key TEXT, value TEXT);",
            [("INSERT INTO ItemTable VALUES ('cursorAuth/accessToken', ?)", (token,))])
         login = cursor_usage.read_login()
