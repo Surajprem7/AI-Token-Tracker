@@ -335,6 +335,15 @@ def make_handler(app: Dashboard, port_ref: list):
                     # Let this reply reach the page, then quit so the update can replace the app.
                     threading.Timer(1.5, app.exit_event.set).start()
                 return self._send(200, json.dumps({"message": message}).encode())
+            if url.path == "/api/extension/install":
+                # Put the extension that ships with the app in a fixed folder (already connected)
+                # and open the browser's extensions page; the user only clicks "Load unpacked".
+                try:
+                    folder = web_usage.install_extension(port_ref[0])
+                except OSError as exc:
+                    return self._send(500, json.dumps({"error": f"Couldn't set up the extension: {exc}"}).encode())
+                browser = web_usage.open_extensions_page()
+                return self._send(200, json.dumps({"path": str(folder), "browser": browser}).encode())
             if url.path == "/api/extension/connect":
                 # A link the extension can connect itself from, valid for 10 minutes, opened in the browser.
                 nonce = secrets.token_urlsafe(16)
@@ -384,6 +393,7 @@ def start(port: int | None = None, roots: list[Path] | None = None) -> tuple[Thr
             raise  # the user asked for this exact port
         httpd = ThreadingHTTPServer(("127.0.0.1", 0), handler)
     port_ref[0] = httpd.server_address[1]
+    web_usage.refresh_installed_extension(port_ref[0])  # an extension installed from the app follows its updates
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
     url = f"http://127.0.0.1:{port_ref[0]}/?t={app.token}"
     return httpd, app, url

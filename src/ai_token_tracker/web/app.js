@@ -1187,6 +1187,23 @@ async function setAutostart(enabled) {
     toast(err.message);
     loadAutostart();
   loadExtension();
+  $("extInstall").onclick = async () => {
+    try {
+      const res = await fetch("/api/extension/install", { method: "POST", headers: { "X-Token": TOKEN } });
+      const r = await res.json();
+      if (!res.ok) throw new Error(r.error || res.statusText);
+      $("extSteps").hidden = false;
+      $("extPath").textContent = r.path;
+      $("extOpened").innerHTML = r.browser
+        ? `${esc(r.browser)}'s extensions page has opened.`
+        : "Open <code>chrome://extensions</code> in Chrome (Edge: <code>edge://extensions</code>).";
+      if (navigator.clipboard) navigator.clipboard.writeText(r.path).then(() => toast("Folder copied. Paste it in Load unpacked."), () => {});
+    } catch (err) { toast(err.message); }
+  };
+  $("extPathCopy").onclick = () => {
+    const p = $("extPath").textContent;
+    (navigator.clipboard ? navigator.clipboard.writeText(p) : Promise.reject()).then(() => toast("Copied."), () => toast(p));
+  };
   $("extConnect").onclick = async () => {
     try {
       const r = await (await fetch("/api/extension/connect", { method: "POST", headers: { "X-Token": TOKEN } })).json();
@@ -1345,6 +1362,23 @@ function init() {
   $("autostart").onchange = (e) => setAutostart(e.target.checked);
   loadAutostart();
   loadExtension();
+  $("extInstall").onclick = async () => {
+    try {
+      const res = await fetch("/api/extension/install", { method: "POST", headers: { "X-Token": TOKEN } });
+      const r = await res.json();
+      if (!res.ok) throw new Error(r.error || res.statusText);
+      $("extSteps").hidden = false;
+      $("extPath").textContent = r.path;
+      $("extOpened").innerHTML = r.browser
+        ? `${esc(r.browser)}'s extensions page has opened.`
+        : "Open <code>chrome://extensions</code> in Chrome (Edge: <code>edge://extensions</code>).";
+      if (navigator.clipboard) navigator.clipboard.writeText(r.path).then(() => toast("Folder copied. Paste it in Load unpacked."), () => {});
+    } catch (err) { toast(err.message); }
+  };
+  $("extPathCopy").onclick = () => {
+    const p = $("extPath").textContent;
+    (navigator.clipboard ? navigator.clipboard.writeText(p) : Promise.reject()).then(() => toast("Copied."), () => toast(p));
+  };
   $("extConnect").onclick = async () => {
     try {
       const r = await (await fetch("/api/extension/connect", { method: "POST", headers: { "X-Token": TOKEN } })).json();

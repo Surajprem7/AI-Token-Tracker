@@ -88,6 +88,15 @@ class WebUsageTests(unittest.TestCase):
         self.assertEqual(err.exception.code, 410)
         self.assertNotIn(web_usage.connection_key(), err.exception.read().decode())
 
+    def test_install_from_the_app_is_already_connected(self):
+        folder = web_usage.install_extension(47690)
+        self.assertTrue((folder / "manifest.json").is_file())
+        self.assertFalse((folder / "STORE.md").exists())
+        conn = json.loads((folder / "connection.json").read_text())
+        self.assertEqual(conn, {"port": 47690, "key": web_usage.connection_key()})
+        web_usage.refresh_installed_extension(51000)  # the app came up on another address
+        self.assertEqual(json.loads((folder / "connection.json").read_text())["port"], 51000)
+
     def test_claude_usage_from_the_website_when_claude_code_isnt_logged_in(self):
         self.assertIsNone(limits.claude())
         web_usage.save_limits({"windows": [{"label": "Session (5h)", "percent": 12}, {"label": "Weekly", "percent": 62}]})

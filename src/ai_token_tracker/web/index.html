@@ -217,14 +217,19 @@
         <div class="card-head"><h2>Browser extension</h2><span class="muted small" id="extChats"></span></div>
         <p>Tracks your chats on <b>claude.ai</b>, <b>chatgpt.com</b> and <b>gemini.google.com</b> (estimated tokens per chat),
           and shows your Claude <i>Session (5h)</i> and <i>Weekly</i> usage in the browser.</p>
-        <ol class="steps">
-          <li><a class="btn" href="https://github.com/Surajprem7/AI-Token-Tracker/releases/latest/download/AITokenTracker-BrowserExtension.zip" target="_blank" rel="noopener">Download the extension</a>
-            and unzip it.</li>
-          <li>In Chrome or Edge open <code>chrome://extensions</code> (<code>edge://extensions</code>), turn on <b>Developer mode</b>,
-            click <b>Load unpacked</b> and pick the unzipped folder.</li>
-          <li><button class="btn" id="extConnect">Connect browser extension</button> opens a page in your browser, and the extension connects by itself.</li>
-        </ol>
-        <details class="more-sources"><summary>Connect by hand instead</summary>
+        <button class="btn" id="extInstall">Install in Chrome / Edge</button>
+        <div id="extSteps" hidden>
+          <ol class="steps">
+            <li><span id="extOpened">In Chrome or Edge, open <code>chrome://extensions</code> (Edge: <code>edge://extensions</code>).</span></li>
+            <li>Turn on <b>Developer mode</b> (top right in Chrome, left side in Edge).</li>
+            <li>Click <b>Load unpacked</b>, paste this folder (<b>Ctrl+V</b>) in the folder box and click <b>Select Folder</b>:
+              <div class="code-row"><code id="extPath"></code><button class="text-btn" id="extPathCopy">Copy</button></div></li>
+          </ol>
+          <p class="muted small">That's it: it's already connected to this app, and it updates itself when the app updates
+            (restart the browser, or click ⟳ on the extension). Don't delete that folder.</p>
+        </div>
+        <details class="more-sources"><summary>Installed the extension another way? Connect it</summary>
+          <p><button class="btn" id="extConnect">Connect browser extension</button></p>
           <p class="muted small">Click the extension's icon and paste this code:</p>
           <div class="code-row"><code id="extCode">…</code><button class="text-btn" id="extCopy">Copy</button></div>
         </details>

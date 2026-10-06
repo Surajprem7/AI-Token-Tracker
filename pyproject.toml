@@ -24,7 +24,7 @@ ai-tokens = "ai_token_tracker.cli:main"
 ai-tokens-gui = "ai_token_tracker.gui:main"
 
 [tool.setuptools.package-data]
-ai_token_tracker = ["web/*", "data/*.json"]
+ai_token_tracker = ["web/*", "data/*.json", "extension/*", "extension/icons/*"]
 
 [tool.setuptools.dynamic]
 version = { attr = "ai_token_tracker.__version__" }

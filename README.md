@@ -46,13 +46,13 @@ Its popup also shows your Claude **Session (5h)** and **Weekly** usage, the toke
 per ChatGPT/Gemini model in the last 3 hours. Those sites don't show their limits, so you can enter your plan's limit per model
 (*Set limits*) and see a bar and when your oldest message stops counting (idea from lugia19's ChatGPT-Counter userscript).
 
-1. Download `AITokenTracker-BrowserExtension.zip` from the Releases page and unzip it.
-2. Chrome or Edge: open `chrome://extensions` (`edge://extensions`), turn on **Developer mode**, click **Load unpacked** and choose the folder.
-   (Firefox: `about:debugging` → This Firefox → Load Temporary Add-on → pick `manifest.json`; it stays until Firefox restarts.)
-3. In the app, open **Sources** and click **Connect browser extension**. A page opens in your browser and the extension connects by itself.
-   (Or copy the connection code from the same card and paste it in the extension's popup.)
+**Easiest:** in the app, open **Sources** and click **Install in Chrome / Edge**. The app sets up the extension (already connected),
+opens the browser's extensions page and copies the folder for you. There: turn on **Developer mode**, click **Load unpacked**,
+paste the folder (Ctrl+V) and click **Select Folder**. The extension then updates together with the app.
 
-To make installing one click ("Add to Chrome"), the extension can be published in the Chrome, Edge and Firefox stores; see `browser-extension/STORE.md`.
+Other ways: download `AITokenTracker-BrowserExtension.zip` from Releases, unzip it and load it the same way (Firefox:
+`about:debugging` → Load Temporary Add-on), then click **Connect browser extension** on the Sources page.
+To make it one click ("Add to Chrome"), the extension can be published in the browser stores; see `src/ai_token_tracker/extension/STORE.md`.
 
 It reads only the chat you have open, using the site's own data and your existing login, and sends results only to the app on your computer.
 If the app is closed, chats wait in the extension and are sent later. Gemini is read from the page itself, so its numbers are rougher.
@@ -168,7 +168,7 @@ This is the quickest way to try it before the installers are built.
 1. Install Python from [python.org](https://www.python.org/downloads/). Keep the "py launcher" option ticked.
 2. Open **PowerShell** in the folder where you saved the `.whl` file and run:
    ```powershell
-   py -m pip install --user "ai_token_tracker-3.2.0-py3-none-any.whl[app]"
+   py -m pip install --user "ai_token_tracker-3.3.0-py3-none-any.whl[app]"
    py -m ai_token_tracker            # opens the dashboard window
    py -m ai_token_tracker --stats    # command-line summary
    ```
@@ -176,7 +176,7 @@ This is the quickest way to try it before the installers are built.
 
 **macOS**
 ```bash
-python3 -m pip install --user "ai_token_tracker-3.2.0-py3-none-any.whl[app]"
+python3 -m pip install --user "ai_token_tracker-3.3.0-py3-none-any.whl[app]"
 python3 -m ai_token_tracker            # opens the dashboard window
 ```
 If macOS doesn't have Python yet, `python3` offers to install the Command Line Tools, or you can use [python.org](https://www.python.org/downloads/).

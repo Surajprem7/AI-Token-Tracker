@@ -154,3 +154,76 @@ def recent_limits(max_age: float = 15 * 60) -> list[dict] | None:
     if datetime.now(timezone.utc).timestamp() - float(doc.get("at") or 0) > max_age:
         return None
     return doc.get("windows") or None
+
+
+# --------------------------------------------------------------------------- #
+# Installing the extension from the desktop app
+# --------------------------------------------------------------------------- #
+
+BUNDLED = Path(__file__).with_name("extension")
+
+
+def installed_dir() -> Path:
+    return _home() / "browser-extension"
+
+
+def install_extension(port: int) -> Path:
+    """Copy the extension that ships with this app to a fixed folder, with the connection filled in.
+
+    The browser loads it from that folder ("Load unpacked"), so the folder must stay. Running this
+    again (each app start) keeps the extension up to date with the app.
+    """
+    import shutil
+
+    dest = installed_dir()
+    dest.mkdir(parents=True, exist_ok=True)
+    for src in BUNDLED.rglob("*"):
+        if src.is_file() and src.name != "STORE.md":
+            target = dest / src.relative_to(BUNDLED)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, target)
+    (dest / "connection.json").write_text(json.dumps({"port": port, "key": connection_key()}), encoding="utf-8")
+    return dest
+
+
+def refresh_installed_extension(port: int) -> None:
+    """If the extension was installed from the app before, update its files and address."""
+    if (installed_dir() / "manifest.json").is_file():
+        try:
+            install_extension(port)
+        except OSError:
+            pass
+
+
+def open_extensions_page() -> str | None:
+    """Open Chrome's or Edge's extensions page. Returns the browser's name, or None."""
+    import shutil
+    import subprocess
+    import sys
+
+    candidates = []  # (name, command, page)
+    if sys.platform == "win32":
+        bases = [os.environ.get(v) for v in ("PROGRAMFILES", "PROGRAMFILES(X86)", "LOCALAPPDATA")]
+        for base in filter(None, bases):
+            candidates.append(("Chrome", str(Path(base) / "Google" / "Chrome" / "Application" / "chrome.exe"), "chrome://extensions"))
+        for base in filter(None, bases):
+            candidates.append(("Edge", str(Path(base) / "Microsoft" / "Edge" / "Application" / "msedge.exe"), "edge://extensions"))
+    elif sys.platform == "darwin":
+        candidates += [("Chrome", "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", "chrome://extensions"),
+                       ("Edge", "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge", "edge://extensions")]
+    else:
+        for name, exe in (("Chrome", "google-chrome"), ("Chrome", "chromium"), ("Edge", "microsoft-edge")):
+            found = shutil.which(exe)
+            if found:
+                candidates.append((name, found, "edge://extensions" if name == "Edge" else "chrome://extensions"))
+    for name, exe, page in candidates:
+        if Path(exe).is_file():
+            try:
+                from .updater import clean_env
+
+                subprocess.Popen([exe, page], close_fds=True, env=clean_env(),
+                                 creationflags=0x08000000 if sys.platform == "win32" else 0)
+                return name
+            except OSError:
+                continue
+    return None

@@ -84,7 +84,7 @@ jobs:
               cp dist/ai-tokens out/ai-tokens-macos ;;
             ubuntu-latest)
               cp dist/*.whl out/ && tar -czf out/AITokenTracker-linux.tar.gz -C dist AITokenTracker ai-tokens
-              (cd browser-extension && zip -qr ../out/AITokenTracker-BrowserExtension.zip .) ;;
+              (cd src/ai_token_tracker/extension && zip -qr ../../../out/AITokenTracker-BrowserExtension.zip . -x STORE.md) ;;
           esac
       - uses: actions/upload-artifact@v4
         with:

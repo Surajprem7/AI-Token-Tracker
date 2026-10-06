@@ -25,6 +25,7 @@ function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.
 const ask = (msg) => new Promise((resolve) => ext.runtime.sendMessage(msg, (r) => resolve(r || {})));
 
 async function render() {
+  const ping = await ask({ type: "status" });  // also connects a copy installed from the app
   const { chats = {}, limits, connection } = await ext.storage.local.get(["chats", "limits", "connection"]);
 
   // Usage: Session (5h), Weekly...
@@ -74,7 +75,6 @@ async function render() {
   $("connectBox").hidden = !!connection;
   const st = $("status");
   if (!connection) { st.className = "status off"; st.textContent = "not connected"; return; }
-  const ping = await ask({ type: "status" });
   st.className = "status " + (ping.ok ? "on" : "off");
   st.textContent = ping.ok ? "connected" : "tracker closed";
   st.title = ping.ok ? `AI Token Tracker ${ping.version}` : ping.error || "";

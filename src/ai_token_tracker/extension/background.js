@@ -29,8 +29,24 @@ async function tracker(path, body) {
   return res.json();
 }
 
+/** A copy installed from the desktop app carries connection.json (the app's address and key):
+    connect with it automatically, and re-read it when the app's address changed. */
+async function connectFromBundle(force) {
+  const { connection } = await get("connection");
+  if (connection && !force) return;
+  try {
+    const res = await fetch(ext.runtime.getURL("connection.json"), { cache: "no-store" });
+    if (!res.ok) return;
+    const c = await res.json();
+    if (c && c.port && c.key && (!connection || connection.key !== c.key || connection.port !== c.port)) {
+      await set({ connection: { port: Number(c.port), key: String(c.key) } });
+    }
+  } catch { /* store or zip install: no bundled file */ }
+}
+
 /** Send every chat the tracker hasn't got yet. */
 async function sync() {
+  await connectFromBundle(false);
   const { chats = {}, unsent = [] } = await get(["chats", "unsent"]);
   const left = [];
   for (const key of unsent) {
@@ -41,6 +57,7 @@ async function sync() {
     } catch (e) {
       left.push(key);
       await set({ lastError: String(e.message || e), lastErrorAt: Date.now() });
+      await connectFromBundle(true);  // the app may be on a new address now
     }
   }
   const { limits } = await get("limits");
@@ -82,6 +99,7 @@ ext.runtime.onMessage.addListener((msg, _sender, reply) => {
           ? "Saved. The tracker app isn't open right now; chats will be sent when it is." : String(e.message || e) });
       }
     } else if (msg.type === "status") {
+      await connectFromBundle(false);
       try { return reply({ ok: true, ...(await tracker("/api/web/ping")) }); } catch (e) { return reply({ ok: false, error: String(e.message || e) }); }
     } else if (msg.type === "open") {
       try { await tracker("/api/web/show", {}); return reply({ ok: true }); } catch (e) { return reply({ ok: false, error: String(e.message || e) }); }
@@ -91,5 +109,7 @@ ext.runtime.onMessage.addListener((msg, _sender, reply) => {
   return true;  // the reply comes later
 });
 
+ext.runtime.onInstalled.addListener(() => connectFromBundle(false).then(sync));
+ext.runtime.onStartup.addListener(() => connectFromBundle(false));
 ext.alarms.create("sync", { periodInMinutes: 1 });
 ext.alarms.onAlarm.addListener((a) => { if (a.name === "sync") sync(); });
