@@ -46,6 +46,8 @@ async function render() {
     }
   }
 
+  renderMessages(chats, await ext.storage.local.get(["caps", "windowHours"]));
+
   // Each chat's tokens, newest first; and today's total.
   const list = Object.values(chats).sort((a, b) => (b.seen || 0) - (a.seen || 0));
   const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
@@ -77,6 +79,68 @@ async function render() {
   st.textContent = ping.ok ? "connected" : "tracker closed";
   st.title = ping.ok ? `AI Token Tracker ${ping.version}` : ping.error || "";
 }
+
+/** Messages sent per model in the last few hours (ChatGPT and Gemini don't show their limits),
+    with your own limit and when the next message frees up. */
+function messageCounts(chats, hours) {
+  const since = Date.now() - hours * 3600000;
+  const per = new Map();
+  for (const c of Object.values(chats)) {
+    if (c.site === "claude") continue;  // Claude shows real usage above
+    for (const t of c.turns || []) {
+      if (!t.t || t.t < since || t.sent === false) continue;
+      const model = `${SITE[c.site]} · ${t.model || "default model"}`;
+      const m = per.get(model) || { count: 0, oldest: Infinity };
+      m.count++; m.oldest = Math.min(m.oldest, t.t);
+      per.set(model, m);
+    }
+  }
+  return per;
+}
+
+function renderMessages(chats, settings) {
+  const hours = Number(settings.windowHours) || 3;
+  const caps = settings.caps || {};
+  const per = messageCounts(chats, hours);
+  $("winH").textContent = hours;
+  $("msgBox").hidden = !per.size && !Object.keys(caps).length;
+  const rows = $("msgRows");
+  rows.textContent = "";
+  for (const [model, m] of [...per.entries()].sort((a, b) => b[1].count - a[1].count)) {
+    const cap = Number(caps[model]) || 0;
+    const pct = cap ? Math.min(100, (m.count / cap) * 100) : 0;
+    const row = el("div", "usage-row" + (pct >= 90 ? " full" : pct >= 70 ? " warn" : ""));
+    const top = el("div", "top");
+    top.append(el("span", "lbl", model), el("span", "pct", cap ? `${m.count} / ${cap}` : `${m.count} sent`));
+    top.append(el("span", "reset", "⏱ " + until(new Date(m.oldest + hours * 3600000).toISOString())));
+    top.lastChild.title = "When your oldest message in this window stops counting";
+    row.append(top);
+    if (cap) { const meter = el("div", "meter"), fill = el("span"); fill.style.width = pct + "%"; meter.append(fill); row.append(meter); }
+    rows.append(row);
+  }
+  // Limit settings: one box per model seen in the last week.
+  const box = $("capInputs");
+  box.textContent = "";
+  const models = new Set([...messageCounts(chats, 24 * 7).keys(), ...Object.keys(caps)]);
+  for (const model of models) {
+    const label = el("label", "", model + " ");
+    const input = el("input");
+    input.type = "number"; input.min = "0"; input.dataset.model = model; input.value = caps[model] || "";
+    label.append(input);
+    box.append(label);
+  }
+  $("winInput").value = hours;
+}
+
+$("capsBtn").onclick = () => { $("capsBox").hidden = !$("capsBox").hidden; };
+$("capsSave").onclick = async () => {
+  const caps = {};
+  document.querySelectorAll("#capInputs input").forEach((i) => { if (Number(i.value) > 0) caps[i.dataset.model] = Number(i.value); });
+  const hours = Math.max(1, Math.min(168, Number($("winInput").value) || 3));
+  await ext.storage.local.set({ caps, windowHours: hours });
+  $("capsBox").hidden = true;
+  render();
+};
 
 $("connect").onclick = async () => {
   $("connectMsg").textContent = "Connecting…";

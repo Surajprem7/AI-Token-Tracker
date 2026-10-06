@@ -28,14 +28,15 @@ async function getJSON(url, headers) {
 /** Turns [{role: "user"|"assistant"|"tool", text, files, id, t, model}] into per-reply estimates. */
 function estimateTurns(messages) {
   const turns = [];
-  let context = 0, prompt = "";
+  let context = 0, prompt = "", asked = false;
   for (const m of messages) {
     const tokens = est(m.text) + est(m.files || "");
     if (m.role === "assistant") {
-      turns.push({ id: m.id, t: m.t, prompt: prompt.slice(0, 400), model: m.model || "", input: context, output: est(m.text) });
-      prompt = "";
+      // "sent": the first reply to a message you sent (later ones are the AI's own tool steps)
+      turns.push({ id: m.id, t: m.t, prompt: prompt.slice(0, 400), model: m.model || "", input: context, output: est(m.text), sent: asked });
+      prompt = ""; asked = false;
     } else if (m.role === "user") {
-      prompt = m.text || prompt;
+      prompt = m.text || prompt; asked = true;
     }
     context += tokens;
   }

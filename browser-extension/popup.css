@@ -36,3 +36,9 @@ button { font: inherit; cursor: pointer; }
 .msg { margin: 6px 0 0; min-height: 1em; }
 footer { display: flex; justify-content: space-between; padding: 8px 12px; }
 .link { border: 0; background: none; color: var(--accent); padding: 2px 0; }
+.link.small { font-size: 11px; text-transform: none; letter-spacing: 0; float: right; }
+#capsBox:not([hidden]) { margin-top: 6px; display: grid; gap: 6px; }
+#capsBox label { display: flex; align-items: center; gap: 6px; justify-content: space-between; width: 100%; }
+#capsBox input { max-width: 90px; flex: none; }
+#capsSave { justify-self: start; padding: 5px 10px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; font-weight: 600; }
+[hidden] { display: none !important; }

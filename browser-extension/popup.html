@@ -17,6 +17,18 @@
   <div id="usageRows"></div>
 </section>
 
+<section id="msgBox" hidden>
+  <div class="label">Messages <span class="muted">(ChatGPT &amp; Gemini, last <span id="winH">3</span> hours)</span>
+    <button class="link small" id="capsBtn">Set limits</button></div>
+  <div id="msgRows"></div>
+  <div id="capsBox" hidden>
+    <p class="muted">Your plan's message limit for each model (leave empty for none). The window is the time a message counts against it.</p>
+    <div class="row"><label>Window (hours) <input id="winInput" type="number" min="1" max="168" step="1"></label></div>
+    <div id="capInputs"></div>
+    <button id="capsSave">Save</button>
+  </div>
+</section>
+
 <section>
   <div class="label">Today on the websites</div>
   <div class="today"><span class="big" id="todayTokens">0</span> <span class="muted">tokens (estimated)</span></div>
