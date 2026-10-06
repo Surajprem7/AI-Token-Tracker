@@ -121,7 +121,7 @@ async function startInOpenTabs() {
   const urls = ["https://claude.ai/*", "https://chatgpt.com/*", "https://chat.openai.com/*", "https://gemini.google.com/*"];
   try {
     for (const tab of await ext.tabs.query({ url: urls })) {
-      ext.scripting.executeScript({ target: { tabId: tab.id }, files: ["tokens.js", "content.js"] }).catch(() => {});
+      ext.scripting.executeScript({ target: { tabId: tab.id }, files: ["tokens.js", "panel.js", "content.js"] }).catch(() => {});
     }
   } catch { /* no permission: the tabs pick it up when reloaded */ }
 }

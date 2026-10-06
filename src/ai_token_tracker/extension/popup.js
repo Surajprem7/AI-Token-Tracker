@@ -156,18 +156,24 @@ $("capsSave").onclick = async () => {
   const hours = Math.max(1, Math.min(168, Number($("winInput").value) || 3));
   await ext.storage.local.set({ caps, windowHours: hours });
   $("capsBox").hidden = true;
-  render();
+  ext.storage.local.get("panel", (v) => { $("panelOn").checked = v.panel !== false; });
+$("panelOn").onchange = (e) => ext.storage.local.set({ panel: e.target.checked });
+render();
 };
 
 $("connect").onclick = async () => {
   $("connectMsg").textContent = "Connecting…";
   const r = await ask({ type: "connect", code: $("code").value });
   $("connectMsg").textContent = r.ok ? `Connected to AI Token Tracker ${r.version || ""}.` : r.error;
-  render();
+  ext.storage.local.get("panel", (v) => { $("panelOn").checked = v.panel !== false; });
+$("panelOn").onchange = (e) => ext.storage.local.set({ panel: e.target.checked });
+render();
 };
 $("change").onclick = () => { $("connectBox").hidden = !$("connectBox").hidden; };
 $("open").onclick = async () => {
   const r = await ask({ type: "open" });
   if (!r.ok) { $("connectBox").hidden = false; $("connectMsg").textContent = r.error || "Open the AI Token Tracker app first."; }
 };
+ext.storage.local.get("panel", (v) => { $("panelOn").checked = v.panel !== false; });
+$("panelOn").onchange = (e) => ext.storage.local.set({ panel: e.target.checked });
 render();

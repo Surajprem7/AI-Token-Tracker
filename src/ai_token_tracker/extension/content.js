@@ -172,13 +172,14 @@ async function tick() {
     if (Date.now() - lastLimits > 120000) {
       lastLimits = Date.now();
       const limits = await site.limits();
-      if (limits) send({ type: "limits", limits });
+      if (limits) { send({ type: "limits", limits }); if (AITT.panel) AITT.panel.limits(limits); }
     }
     const id = site.chatId();
-    if (!id) return;
+    if (!id) { if (AITT.panel) AITT.panel.clearChat(); return; }
     const chat = await site.read(id);
     if (!chat || !chat.turns.length) return;
     const doc = { site: site.site, id, url: location.href, ...chat };
+    if (AITT.panel) AITT.panel.chat(doc);  // the box on the page updates right away
     const sig = JSON.stringify(doc.turns.map((t) => [t.id, t.input, t.output]));
     // Send once a reply has stopped growing (same on two checks in a row).
     if (sig !== lastSent && sig === pending) {
@@ -194,5 +195,5 @@ async function tick() {
 tick();
 setInterval(tick, POLL_MS);
 let lastPath = location.pathname;
-setInterval(() => { if (location.pathname !== lastPath) { lastPath = location.pathname; pending = ""; setTimeout(tick, 2000); } }, 1000);
+setInterval(() => { if (location.pathname !== lastPath) { lastPath = location.pathname; pending = ""; if (AITT.panel) AITT.panel.clearChat(); setTimeout(tick, 2000); } }, 1000);
 document.addEventListener("visibilitychange", () => { if (!document.hidden) tick(); });

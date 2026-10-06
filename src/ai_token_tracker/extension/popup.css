@@ -42,3 +42,4 @@ footer { display: flex; justify-content: space-between; padding: 8px 12px; }
 #capsBox input { max-width: 90px; flex: none; }
 #capsSave { justify-self: start; padding: 5px 10px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; font-weight: 600; }
 [hidden] { display: none !important; }
+.switch { display: flex; gap: 8px; align-items: center; cursor: pointer; }
