@@ -88,7 +88,7 @@ def session_rows(sessions: list[Session], title_width: int = 48) -> str:
             clip(s.title, title_width),
         ])
     return table(
-        ["#", "AI", "ID", "Started", "Project", "Calls", "In+Write", "CacheRead", "Output", "Total", "Cost", "First prompt"],
+        ["#", "AI", "ID", "Started", "Project", "Calls", "In+Write", "CacheRead", "Output", "Total tokens", "Cost", "First prompt"],
         rows, right={0, 5, 6, 7, 8, 9, 10},
     )
 
@@ -134,7 +134,7 @@ def print_session(s: Session, show_calls: bool) -> None:
             fmt(u.input + u.cache_write), fmt(u.cache_read), fmt(u.output), fmt(u.total),
             clip(t.prompt or "(before first prompt)", 60),
         ])
-    print(table(["#", "Time", "Calls", "In+Write", "CacheRead", "Output", "Total", "Prompt"],
+    print(table(["#", "Time", "Calls", "In+Write", "CacheRead", "Output", "Total tokens", "Prompt"],
                 rows, right={0, 2, 3, 4, 5, 6}))
     if show_calls:
         print()
@@ -150,7 +150,7 @@ def print_session(s: Session, show_calls: bool) -> None:
                     call.model + (" (sub)" if call.subagent else ""),
                     fmt(u.input), fmt(u.cache_write), fmt(u.cache_read), fmt(u.output), fmt(u.total),
                 ])
-        print(table(["#", "Prompt", "Time", "Model", "Input", "CacheWrite", "CacheRead", "Output", "Total"],
+        print(table(["#", "Prompt", "Time", "Model", "Input", "CacheWrite", "CacheRead", "Output", "Total tokens"],
                     rows, right={0, 1, 4, 5, 6, 7, 8}))
 
 
@@ -167,7 +167,7 @@ def print_stats(sessions: list[Session]) -> None:
                          short(u.input + u.cache_write), short(u.cache_read), short(u.output),
                          fmt(u.total), money(u.cost), f"{share:.1f}%"])
         print(bold(title))
-        print(table(["Name", "Sessions", "Calls", "In+Write", "CacheRead", "Output", "Total", "Est. cost", "Share"],
+        print(table(["Name", "Sessions", "Calls", "In+Write", "CacheRead", "Output", "Total tokens", "Est. cost", "Share"],
                     rows, right={1, 2, 3, 4, 5, 6, 7, 8}))
         print()
 

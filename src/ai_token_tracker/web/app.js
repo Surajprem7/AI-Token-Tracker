@@ -602,7 +602,7 @@ const BREAKDOWN_COLS = [
   { key: "out", label: "Output", opt: true },
   { key: "cw", label: "Cache write", opt: true },
   { key: "cr", label: "Cache read", opt: true },
-  { key: "total", label: "Total" },
+  { key: "total", label: "Total tokens", tip: "Input + Output + Cache write + Cache read" },
   { key: "cost", label: "Est. cost" },
   { key: "share", label: "Share", opt: true },
 ];
@@ -625,7 +625,7 @@ function renderBreakdown(calls, u) {
   const dir = state.sort.key ? state.sort.dir : -1;
   rows.sort((a, b) => (typeof a[key] === "string" ? a[key].localeCompare(b[key]) : a[key] - b[key]) * dir);
   const nameLabel = { day: "Date", project: "Project", model: "Model", tool: "AI tool", app: "App" }[state.breakdown];
-  const head = BREAKDOWN_COLS.map((c) => `<th data-k="${c.key}" class="${c.opt ? "opt" : ""}" ${c.key === key ? `aria-sort="${dir < 0 ? "descending" : "ascending"}"` : ""}>${esc(c.key === "name" ? nameLabel : c.label)}</th>`).join("");
+  const head = BREAKDOWN_COLS.map((c) => `<th data-k="${c.key}" class="${c.opt ? "opt" : ""}" ${c.tip ? `title="${esc(c.tip)}"` : ""} ${c.key === key ? `aria-sort="${dir < 0 ? "descending" : "ascending"}"` : ""}>${esc(c.key === "name" ? nameLabel : c.label)}</th>`).join("");
   const body = rows.map((r) => `<tr>${BREAKDOWN_COLS.map((c) => {
     const v = r[c.key];
     const text = c.key === "name" ? v : c.key === "cost" ? money(v) : c.key === "share" ? (v * 100).toFixed(1) + "%" : fmt(v);
@@ -792,7 +792,7 @@ function turnNode(t, n) {
     const wrap = document.createElement("div");
     wrap.className = "calls table-wrap";
     wrap.innerHTML = `<table class="data"><thead><tr><th>API call</th><th>Time</th><th class="opt">Input</th><th>Output</th>
-      <th class="opt">Cache write</th><th class="opt">Cache read</th><th>Total</th><th>Est. cost</th></tr></thead><tbody>${rows}</tbody></table>`;
+      <th class="opt">Cache write</th><th class="opt">Cache read</th><th title="Input + Output + Cache write + Cache read">Total tokens</th><th>Est. cost</th></tr></thead><tbody>${rows}</tbody></table>`;
     det.appendChild(wrap);
   };
   det.addEventListener("toggle", () => { if (det.open) det._fill(); });
