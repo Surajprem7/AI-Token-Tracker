@@ -1072,7 +1072,7 @@ class Tool:
 
 
 def tools() -> list[Tool]:
-    from . import cursor_usage
+    from . import cursor_usage, web_usage
 
     return [
         Tool("Cursor", lambda: [cursor_usage.cache_file()], "",
@@ -1108,6 +1108,9 @@ def tools() -> list[Tool]:
              "Automatic. Reads Hermes Agent's session database (session totals).", load_hermes_sessions),
         Tool("AnythingLLM", lambda: [anythingllm_db()], "",
              "Automatic. Reads AnythingLLM Desktop's chat history.", load_anythingllm_sessions),
+        Tool("Websites (browser extension)", lambda: [web_usage.web_dir()], "*.json",
+             "With the AI Token Tracker browser extension: estimated tokens of your chats on claude.ai, "
+             "chatgpt.com and gemini.google.com.", web_usage.load_web_sessions),
         Tool("LM Studio", lambda: [lmstudio_home() / "server-logs"], "*.log",
              "Automatic. Reads LM Studio's local server logs (local models are free: cost 0).",
              load_lmstudio_sessions),

@@ -130,7 +130,11 @@ def _http_message(name: str, exc: Exception, tool_hint: str) -> str:
 
 def claude() -> dict | None:
     if plan._read_login() is None:
-        return None
+        # No Claude Code login here: use what the browser extension last saw on claude.ai.
+        from . import web_usage
+
+        windows = web_usage.recent_limits()
+        return _result("claude", "Claude", rows=windows) if windows else None
     s = plan.status()
     return _result("claude", "Claude", s.get("plan"), s.get("windows"), s.get("message"))
 

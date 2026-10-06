@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>AI Token Tracker</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<header>
+  <img src="icons/icon48.png" alt="" width="20" height="20">
+  <b>AI Token Tracker</b>
+  <span class="status" id="status" title=""></span>
+</header>
+
+<section id="usageBox" hidden>
+  <div class="label">Usage <span class="muted" id="usageAge"></span></div>
+  <div id="usageRows"></div>
+</section>
+
+<section>
+  <div class="label">Today on the websites</div>
+  <div class="today"><span class="big" id="todayTokens">0</span> <span class="muted">tokens (estimated)</span></div>
+</section>
+
+<section>
+  <div class="label">Chats <span class="muted">(estimated tokens per chat)</span></div>
+  <ul id="chats"></ul>
+</section>
+
+<section id="connectBox" hidden>
+  <div class="label">Connect to the tracker app</div>
+  <p class="muted">Open AI Token Tracker, go to <b>Sources → Browser extension</b>, copy the connection code and paste it here.</p>
+  <div class="row"><input id="code" placeholder="47690-…" autocomplete="off" spellcheck="false"><button id="connect">Connect</button></div>
+  <p class="msg" id="connectMsg"></p>
+</section>
+
+<footer>
+  <button class="link" id="open">Open tracker</button>
+  <button class="link" id="change">Connection</button>
+</footer>
+<script src="tokens.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>

@@ -1159,6 +1159,14 @@ async function showWidget() {
   }
 }
 
+async function loadExtension() {
+  try {
+    const d = await (await fetch("/api/extension", { headers: { "X-Token": TOKEN } })).json();
+    $("extCode").textContent = d.code;
+    $("extChats").textContent = d.chats ? `${d.chats} chat${d.chats === 1 ? "" : "s"} received` : "not connected yet";
+  } catch { /* offline page */ }
+}
+
 async function loadAutostart() {
   let st;
   try { st = await (await fetch("/api/autostart", { headers: { "X-Token": TOKEN } })).json(); } catch { return; }
@@ -1178,6 +1186,11 @@ async function setAutostart(enabled) {
   } catch (err) {
     toast(err.message);
     loadAutostart();
+  loadExtension();
+  $("extCopy").onclick = () => {
+    const code = $("extCode").textContent;
+    (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(() => toast("Copied. Paste it in the extension."), () => toast(code));
+  };
   }
 }
 
@@ -1325,6 +1338,11 @@ function init() {
   $("widgetOpen").onclick = showWidget;
   $("autostart").onchange = (e) => setAutostart(e.target.checked);
   loadAutostart();
+  loadExtension();
+  $("extCopy").onclick = () => {
+    const code = $("extCode").textContent;
+    (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(() => toast("Copied. Paste it in the extension."), () => toast(code));
+  };
   document.addEventListener("keydown", (e) => {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); $("palette").hidden ? openPalette() : closePalette(); }
     else if (e.key === "Escape" && !$("palette").hidden) closePalette();

@@ -82,7 +82,9 @@ jobs:
               # Apple Silicon (M1 and later) build; Intel Macs can use the pip install instead.
               ditto -c -k --keepParent dist/AITokenTracker.app out/AITokenTracker-macOS-AppleSilicon.zip
               cp dist/ai-tokens out/ai-tokens-macos ;;
-            ubuntu-latest)  cp dist/*.whl out/ && tar -czf out/AITokenTracker-linux.tar.gz -C dist AITokenTracker ai-tokens ;;
+            ubuntu-latest)
+              cp dist/*.whl out/ && tar -czf out/AITokenTracker-linux.tar.gz -C dist AITokenTracker ai-tokens
+              (cd browser-extension && zip -qr ../out/AITokenTracker-BrowserExtension.zip .) ;;
           esac
       - uses: actions/upload-artifact@v4
         with:
@@ -111,6 +113,7 @@ jobs:
             **Download**
             - **Windows:** `AITokenTracker-Setup.exe` (installs for your user, no admin needed). Portable: `AITokenTracker.exe`.
             - **Mac (M1 or later):** `AITokenTracker-macOS-AppleSilicon.zip`. Unzip, move the app to Applications, then right-click → Open the first time.
+            - **Browser extension** (claude.ai, chatgpt.com, gemini.google.com): `AITokenTracker-BrowserExtension.zip`. Unzip, then in Chrome or Edge open `chrome://extensions`, turn on Developer mode and click Load unpacked. Connect it with the code on the app's Sources page.
             - **Any computer with Python:** `pip install "ai_token_tracker-<version>-py3-none-any.whl[app]"`, then `ai-tokens-gui`.
 
             Installed copies check for a new release every time they open and update themselves automatically.

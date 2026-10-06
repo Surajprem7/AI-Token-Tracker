@@ -214,6 +214,18 @@
         <p class="note" id="autostartNote"></p>
       </article>
       <article class="card span-7">
+        <div class="card-head"><h2>Browser extension</h2><span class="muted small" id="extChats"></span></div>
+        <p>Tracks your chats on <b>claude.ai</b>, <b>chatgpt.com</b> and <b>gemini.google.com</b> (estimated tokens per chat),
+          and shows your Claude <i>Session (5h)</i> and <i>Weekly</i> usage in the browser.</p>
+        <ol class="steps">
+          <li>Download <a href="https://github.com/Surajprem7/AI-Token-Tracker/releases/latest/download/AITokenTracker-BrowserExtension.zip" target="_blank" rel="noopener">AITokenTracker-BrowserExtension.zip</a> and unzip it.</li>
+          <li>Chrome or Edge: open <code>chrome://extensions</code> (or <code>edge://extensions</code>), turn on <b>Developer mode</b>, click <b>Load unpacked</b> and pick the unzipped folder.</li>
+          <li>Click the extension's icon and paste this connection code:</li>
+        </ol>
+        <div class="code-row"><code id="extCode">…</code><button class="text-btn" id="extCopy">Copy</button></div>
+        <p class="note">Token counts on the websites are estimates (about 4 characters per token). The code lets only your extension send chats to this app.</p>
+      </article>
+      <article class="card span-5">
         <div class="card-head"><h2>Track any other AI</h2></div>
         <p>Log usage from any AI tool or script. It shows up here like the built-in tools.</p>
         <pre><code>ai-tokens --add ChatGPT gpt-5 1200 350 --prompt "draft email"</code></pre>

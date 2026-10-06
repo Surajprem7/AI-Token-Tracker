@@ -398,3 +398,7 @@ body.widget { min-width: 0; }
 .usage-row.warn .meter span { background: #fab219; }
 .usage-row.full .pct { color: #d03b3b; }
 .usage-row.full .meter span { background: #d03b3b; }
+.steps { margin: 6px 0 10px; padding-left: 20px; display: grid; gap: 4px; }
+.code-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.code-row code { background: var(--surface-2); padding: 6px 10px; border-radius: 6px; overflow-wrap: anywhere; font-size: 13px; }
+.code-row .text-btn { margin-left: 0; }

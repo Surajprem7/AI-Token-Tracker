@@ -35,8 +35,22 @@ Roo Code and Kilo Code don't log the model on every request. The tracker looks i
 Goose, Droid, Craft Agents and Hermes save only totals per session, and Kiro and LM Studio save no session at all (they're grouped by day).
 `ai-tokens --sources` (or the Sources page) shows which of these it found on your computer.
 
-Chats on the ChatGPT, claude.ai or Gemini websites and mobile apps don't reveal token counts, so nothing can track those exactly.
+Chats on the ChatGPT, claude.ai or Gemini websites don't reveal token counts; the browser extension (below) estimates them. Phone apps can't be tracked.
 The **Plan limits** card still shows how much of each subscription they used. If you know the numbers, you can also add them by hand.
+
+### Chats on the Claude, ChatGPT and Gemini websites (browser extension)
+
+The websites don't show token counts, so the **AI Token Tracker browser extension** estimates them from the text of each chat
+(the whole chat so far as input, each reply as output, about 4 characters per token) and sends them to the app.
+Its popup also shows your Claude **Session (5h)** and **Weekly** usage and the tokens of each chat.
+
+1. Download `AITokenTracker-BrowserExtension.zip` from the Releases page and unzip it.
+2. Chrome or Edge: open `chrome://extensions` (`edge://extensions`), turn on **Developer mode**, click **Load unpacked** and choose the folder.
+   (Firefox: `about:debugging` → This Firefox → Load Temporary Add-on → pick `manifest.json`; it stays until Firefox restarts.)
+3. In the app, open **Sources → Browser extension**, copy the connection code, and paste it in the extension's popup.
+
+It reads only the chat you have open, using the site's own data and your existing login, and sends results only to the app on your computer.
+If the app is closed, chats wait in the extension and are sent later. Gemini is read from the page itself, so its numbers are rougher.
 
 ### Adding any other AI
 
@@ -149,7 +163,7 @@ This is the quickest way to try it before the installers are built.
 1. Install Python from [python.org](https://www.python.org/downloads/). Keep the "py launcher" option ticked.
 2. Open **PowerShell** in the folder where you saved the `.whl` file and run:
    ```powershell
-   py -m pip install --user "ai_token_tracker-3.0.4-py3-none-any.whl[app]"
+   py -m pip install --user "ai_token_tracker-3.1.0-py3-none-any.whl[app]"
    py -m ai_token_tracker            # opens the dashboard window
    py -m ai_token_tracker --stats    # command-line summary
    ```
@@ -157,7 +171,7 @@ This is the quickest way to try it before the installers are built.
 
 **macOS**
 ```bash
-python3 -m pip install --user "ai_token_tracker-3.0.4-py3-none-any.whl[app]"
+python3 -m pip install --user "ai_token_tracker-3.1.0-py3-none-any.whl[app]"
 python3 -m ai_token_tracker            # opens the dashboard window
 ```
 If macOS doesn't have Python yet, `python3` offers to install the Command Line Tools, or you can use [python.org](https://www.python.org/downloads/).

@@ -18,7 +18,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import __version__, autostart, context, cursor_usage, limits, outcomes, plan, pricing, rates, updater
+from . import __version__, autostart, web_usage, context, cursor_usage, limits, outcomes, plan, pricing, rates, updater
 from .core import Session, default_roots, load_sessions
 from .sources import data_signature, source_status
 
@@ -203,6 +203,10 @@ def make_handler(app: Dashboard, port_ref: list):
                 return self._send(403, b'{"error":"bad host"}')
             url = urlparse(self.path)
             query = parse_qs(url.query)
+            if url.path == "/api/web/ping":  # the browser extension checks its connection
+                if not web_usage.key_ok(self.headers.get("X-AITT-Key")):
+                    return self._send(403, b'{"error":"bad key"}')
+                return self._send(200, json.dumps({"ok": True, "version": __version__}).encode())
             if url.path.startswith("/api/"):
                 if not self._api_allowed(query):
                     return self._send(403, b'{"error":"bad token"}')
@@ -214,6 +218,9 @@ def make_handler(app: Dashboard, port_ref: list):
                         return self._send(500, json.dumps({"error": str(exc)}).encode())
                 if url.path == "/api/plan":
                     return self._send(200, json.dumps(plan.status(force="force" in query)).encode())
+                if url.path == "/api/extension":
+                    return self._send(200, json.dumps({"code": f"{port_ref[0]}-{web_usage.connection_key()}",
+                                                       "chats": web_usage.chat_count()}).encode())
                 if url.path == "/api/summary":
                     return self._send(200, json.dumps(app.summary()).encode())
                 if url.path == "/api/autostart":
@@ -242,6 +249,27 @@ def make_handler(app: Dashboard, port_ref: list):
             if not self._host_ok():
                 return self._send(403, b'{"error":"bad host"}')
             url = urlparse(self.path)
+            if url.path.startswith("/api/web/"):  # from the browser extension, with its own key
+                if not web_usage.key_ok(self.headers.get("X-AITT-Key")):
+                    return self._send(403, b'{"error":"bad key"}')
+                try:
+                    length = int(self.headers.get("Content-Length") or 0)
+                    if length > 8 * 1024 * 1024:
+                        return self._send(413, b'{"error":"too large"}')
+                    body = json.loads(self.rfile.read(length) or b"{}")
+                    if url.path == "/api/web/chat":
+                        n = web_usage.save_chat(body)
+                        return self._send(200, json.dumps({"ok": True, "replies": n}).encode())
+                    if url.path == "/api/web/limits":
+                        web_usage.save_limits(body)
+                        return self._send(200, b'{"ok":true}')
+                    if url.path == "/api/web/show":
+                        if app.on_show is not None:
+                            threading.Thread(target=app.on_show, daemon=True).start()
+                        return self._send(200, b'{"ok":true}')
+                except (ValueError, TypeError) as exc:
+                    return self._send(400, json.dumps({"error": str(exc)}).encode())
+                return self._send(404, b'{"error":"not found"}')
             if url.path == "/api/focus" and self.headers.get("X-AITT") == "focus":
                 # A second launch of the app asks this one to come forward. Needs no token (it has none),
                 # but web pages can't send the custom header without a preflight we never answer, and
