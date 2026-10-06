@@ -1,17 +1,60 @@
 {
   "manifest_version": 3,
   "name": "AI Token Tracker",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Estimates the tokens of your chats on claude.ai, chatgpt.com and gemini.google.com, shows your Claude plan usage, and sends them to the AI Token Tracker app on your computer.",
-  "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" },
-  "action": { "default_popup": "popup.html", "default_title": "AI Token Tracker" },
-  "background": { "service_worker": "background.js", "scripts": ["background.js"] },
-  "permissions": ["storage", "alarms"],
-  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
-  "content_scripts": [{
-    "matches": ["https://claude.ai/*", "https://chatgpt.com/*", "https://chat.openai.com/*", "https://gemini.google.com/*"],
-    "js": ["tokens.js", "content.js"],
-    "run_at": "document_idle"
-  }],
-  "browser_specific_settings": { "gecko": { "id": "ai-token-tracker@surajprem7.github.io", "strict_min_version": "121.0" } }
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "AI Token Tracker"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "scripts": [
+      "background.js"
+    ]
+  },
+  "permissions": [
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1/*",
+    "http://localhost/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://claude.ai/*",
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://gemini.google.com/*"
+      ],
+      "js": [
+        "tokens.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "http://127.0.0.1/connect*",
+        "http://localhost/connect*"
+      ],
+      "js": [
+        "connect.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "ai-token-tracker@surajprem7.github.io",
+      "strict_min_version": "121.0"
+    }
+  }
 }

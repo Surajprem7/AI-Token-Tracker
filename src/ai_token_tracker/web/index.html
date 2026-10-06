@@ -218,11 +218,16 @@
         <p>Tracks your chats on <b>claude.ai</b>, <b>chatgpt.com</b> and <b>gemini.google.com</b> (estimated tokens per chat),
           and shows your Claude <i>Session (5h)</i> and <i>Weekly</i> usage in the browser.</p>
         <ol class="steps">
-          <li>Download <a href="https://github.com/Surajprem7/AI-Token-Tracker/releases/latest/download/AITokenTracker-BrowserExtension.zip" target="_blank" rel="noopener">AITokenTracker-BrowserExtension.zip</a> and unzip it.</li>
-          <li>Chrome or Edge: open <code>chrome://extensions</code> (or <code>edge://extensions</code>), turn on <b>Developer mode</b>, click <b>Load unpacked</b> and pick the unzipped folder.</li>
-          <li>Click the extension's icon and paste this connection code:</li>
+          <li><a class="btn" href="https://github.com/Surajprem7/AI-Token-Tracker/releases/latest/download/AITokenTracker-BrowserExtension.zip" target="_blank" rel="noopener">Download the extension</a>
+            and unzip it.</li>
+          <li>In Chrome or Edge open <code>chrome://extensions</code> (<code>edge://extensions</code>), turn on <b>Developer mode</b>,
+            click <b>Load unpacked</b> and pick the unzipped folder.</li>
+          <li><button class="btn" id="extConnect">Connect browser extension</button> opens a page in your browser, and the extension connects by itself.</li>
         </ol>
-        <div class="code-row"><code id="extCode">…</code><button class="text-btn" id="extCopy">Copy</button></div>
+        <details class="more-sources"><summary>Connect by hand instead</summary>
+          <p class="muted small">Click the extension's icon and paste this code:</p>
+          <div class="code-row"><code id="extCode">…</code><button class="text-btn" id="extCopy">Copy</button></div>
+        </details>
         <p class="note">Token counts on the websites are estimates (about 4 characters per token). The code lets only your extension send chats to this app.</p>
       </article>
       <article class="card span-5">

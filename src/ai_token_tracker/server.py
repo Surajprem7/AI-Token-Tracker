@@ -8,11 +8,13 @@ read your usage data.
 
 from __future__ import annotations
 
+import html
 import json
 import re
 import secrets
 import threading
 import time
+import webbrowser
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -107,6 +109,36 @@ def build_payload(sessions: list[Session], roots: list[Path] | None) -> dict:
     }
 
 
+EXTENSION_ZIP = "https://github.com/Surajprem7/AI-Token-Tracker/releases/latest/download/AITokenTracker-BrowserExtension.zip"
+
+
+def connect_page(code: str) -> str:
+    """The page the browser extension connects itself from (it reads the aitt-connect tag)."""
+    meta = f'<meta name="aitt-connect" content="{html.escape(code)}">' if code else ""
+    body = ("""<h1>Connect the browser extension</h1>
+<p id="aitt-status" class="wait">Waiting for the AI Token Tracker extension…</p>
+<div id="aitt-help">
+<p>Don't have it yet? It takes a minute:</p>
+<ol>
+<li><a class="btn" href="%s">Download the extension</a> and unzip it (right-click → Extract All).</li>
+<li>Open <b>chrome://extensions</b> (Edge: <b>edge://extensions</b>) in a new tab, turn on <b>Developer mode</b>,
+click <b>Load unpacked</b> and choose the unzipped folder.</li>
+<li>Come back to this page and press <b>F5</b>. It connects by itself.</li>
+</ol></div>""" % EXTENSION_ZIP) if code else """<h1>This link has expired</h1>
+<p>Open AI Token Tracker and click <b>Connect browser extension</b> again.</p>"""
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8">{meta}
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>Connect · AI Token Tracker</title>
+<style>
+:root{{color-scheme:light dark;--bg:#fafaf8;--ink:#1d1d1b;--muted:#74726d;--accent:#2a78d6}}
+@media (prefers-color-scheme:dark){{:root{{--bg:#151517;--ink:#f2f2f0;--muted:#99978f;--accent:#3987e5}}}}
+body{{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}}
+main{{max-width:620px;margin:10vh auto;padding:0 20px}} h1{{font-size:24px}} li{{margin:8px 0}}
+#aitt-status{{font-size:18px;padding:14px 16px;border-radius:10px;border:1px solid var(--muted)}}
+#aitt-status.ok{{border-color:#0ca30c}} #aitt-status.ok::before{{content:"✓ ";color:#0ca30c;font-weight:700}}
+.btn{{display:inline-block;background:var(--accent);color:#fff;padding:6px 12px;border-radius:8px;text-decoration:none;font-weight:600}}
+</style></head><body><main>{body}</main></body></html>"""
+
+
 class Dashboard:
     def __init__(self, roots: list[Path] | None = None):
         self.roots = roots
@@ -122,6 +154,7 @@ class Dashboard:
         self.on_widget = None
         self.on_show = None
         self.on_show_widget = None
+        self.connect_links: dict[str, float] = {}  # one-time "connect the browser extension" links -> expiry
 
     def data(self, force: bool = False) -> bytes:
         """The dashboard JSON; logs are re-read only when a log file changed (or when forced)."""
@@ -203,6 +236,12 @@ def make_handler(app: Dashboard, port_ref: list):
                 return self._send(403, b'{"error":"bad host"}')
             url = urlparse(self.path)
             query = parse_qs(url.query)
+            if url.path == "/connect":  # opened in the browser: the extension connects itself from this page
+                nonce = (query.get("n") or [""])[0]
+                expiry = app.connect_links.get(nonce)
+                ok = bool(nonce) and expiry is not None and time.monotonic() < expiry
+                code = f"{port_ref[0]}-{web_usage.connection_key()}" if ok else ""
+                return self._send(200 if ok else 410, connect_page(code).encode(), "text/html; charset=utf-8")
             if url.path == "/api/web/ping":  # the browser extension checks its connection
                 if not web_usage.key_ok(self.headers.get("X-AITT-Key")):
                     return self._send(403, b'{"error":"bad key"}')
@@ -296,6 +335,15 @@ def make_handler(app: Dashboard, port_ref: list):
                     # Let this reply reach the page, then quit so the update can replace the app.
                     threading.Timer(1.5, app.exit_event.set).start()
                 return self._send(200, json.dumps({"message": message}).encode())
+            if url.path == "/api/extension/connect":
+                # A link the extension can connect itself from, valid for 10 minutes, opened in the browser.
+                nonce = secrets.token_urlsafe(16)
+                now = time.monotonic()
+                app.connect_links = {k: v for k, v in app.connect_links.items() if v > now}
+                app.connect_links[nonce] = now + 600
+                link = f"http://127.0.0.1:{port_ref[0]}/connect?n={nonce}"
+                threading.Thread(target=webbrowser.open, args=(link,), daemon=True).start()
+                return self._send(200, json.dumps({"url": link}).encode())
             if url.path in ("/api/widget", "/api/show"):
                 handler = app.on_widget if url.path == "/api/widget" else app.on_show
                 if handler is None:

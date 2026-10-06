@@ -1187,6 +1187,12 @@ async function setAutostart(enabled) {
     toast(err.message);
     loadAutostart();
   loadExtension();
+  $("extConnect").onclick = async () => {
+    try {
+      const r = await (await fetch("/api/extension/connect", { method: "POST", headers: { "X-Token": TOKEN } })).json();
+      toast("A page opened in your browser. If it didn't, open this link in Chrome or Edge: " + r.url);
+    } catch { toast("Couldn't open the browser."); }
+  };
   $("extCopy").onclick = () => {
     const code = $("extCode").textContent;
     (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(() => toast("Copied. Paste it in the extension."), () => toast(code));
@@ -1339,6 +1345,12 @@ function init() {
   $("autostart").onchange = (e) => setAutostart(e.target.checked);
   loadAutostart();
   loadExtension();
+  $("extConnect").onclick = async () => {
+    try {
+      const r = await (await fetch("/api/extension/connect", { method: "POST", headers: { "X-Token": TOKEN } })).json();
+      toast("A page opened in your browser. If it didn't, open this link in Chrome or Edge: " + r.url);
+    } catch { toast("Couldn't open the browser."); }
+  };
   $("extCopy").onclick = () => {
     const code = $("extCode").textContent;
     (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).then(() => toast("Copied. Paste it in the extension."), () => toast(code));

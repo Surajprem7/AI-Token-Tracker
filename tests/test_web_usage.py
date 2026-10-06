@@ -70,6 +70,24 @@ class WebUsageTests(unittest.TestCase):
         self.assertEqual(code["code"], f"{httpd.server_address[1]}-{key}")
         self.assertEqual(code["chats"], 1)
 
+    def test_one_click_connect_link(self):
+        from unittest import mock
+        httpd, app, url = server.start(port=0)
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+        with mock.patch("webbrowser.open") as opened:
+            link = json.loads(urllib.request.urlopen(urllib.request.Request(
+                base + "/api/extension/connect", method="POST", data=b"", headers={"X-Token": app.token}), timeout=5).read())["url"]
+            time.sleep(0.2)
+        opened.assert_called_once_with(link)
+        page = urllib.request.urlopen(link, timeout=5).read().decode()
+        self.assertIn(f'content="{httpd.server_address[1]}-{web_usage.connection_key()}"', page)
+        with self.assertRaises(urllib.error.HTTPError) as err:  # an unknown link shows no key
+            urllib.request.urlopen(base + "/connect?n=guess", timeout=5)
+        self.assertEqual(err.exception.code, 410)
+        self.assertNotIn(web_usage.connection_key(), err.exception.read().decode())
+
     def test_claude_usage_from_the_website_when_claude_code_isnt_logged_in(self):
         self.assertIsNone(limits.claude())
         web_usage.save_limits({"windows": [{"label": "Session (5h)", "percent": 12}, {"label": "Weekly", "percent": 62}]})

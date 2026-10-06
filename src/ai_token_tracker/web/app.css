@@ -402,3 +402,4 @@ body.widget { min-width: 0; }
 .code-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .code-row code { background: var(--surface-2); padding: 6px 10px; border-radius: 6px; overflow-wrap: anywhere; font-size: 13px; }
 .code-row .text-btn { margin-left: 0; }
+.steps .btn { margin-top: 0; padding: 4px 10px; font-size: 13px; }
