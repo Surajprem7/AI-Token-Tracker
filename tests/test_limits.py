@@ -52,7 +52,7 @@ class LimitsTests(unittest.TestCase):
         self.assertEqual(req.call_args[0][1]["ChatGPT-Account-Id"], "acc")
         self.assertEqual(r["plan"], "Pro")
         self.assertEqual([(w["label"], w["percent"]) for w in r["windows"]],
-                         [("Current 5-hour window", 42.0), ("This week", 7.0)])
+                         [("Session (5h)", 42.0), ("Weekly", 7.0)])
         self.assertNotIn(token, json.dumps(r))
 
     def test_codex_expired_login_is_not_used(self):

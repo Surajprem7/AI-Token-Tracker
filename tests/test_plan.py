@@ -42,7 +42,7 @@ class PlanTests(unittest.TestCase):
     def test_parse_reply(self):
         rows = plan.parse_usage(REPLY)
         self.assertEqual([r["label"] for r in rows],
-                         ["Current 5-hour window", "This week (all models)", "This week (Fable)"])
+                         ["Session (5h)", "Weekly", "Weekly (Fable)"])
         self.assertEqual(rows[0]["percent"], 42.0)
         self.assertEqual(plan.parse_usage({"five_hour": {"utilization": 250}})[0]["percent"], 100.0)
 

@@ -145,7 +145,7 @@ def _codex_window(w, fallback: str) -> dict | None:
     if not isinstance(w, dict):
         return None
     seconds = w.get("limit_window_seconds")
-    label = {18000: "Current 5-hour window", 604800: "This week"}.get(seconds, fallback)
+    label = {18000: "Session (5h)", 604800: "Weekly"}.get(seconds, fallback)
     reset = w.get("reset_at")
     if reset is None and isinstance(w.get("reset_after_seconds"), (int, float)):
         reset = time.time() + w["reset_after_seconds"]

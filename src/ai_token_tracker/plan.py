@@ -32,10 +32,10 @@ USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
 KEYCHAIN_SERVICE = "Claude Code-credentials"
 CACHE_SECONDS = 60
 WINDOWS = (  # (field in Anthropic's reply, label shown in the app)
-    ("five_hour", "Current 5-hour window"),
-    ("seven_day", "This week (all models)"),
-    ("seven_day_opus", "This week (Opus)"),
-    ("seven_day_sonnet", "This week (Sonnet)"),
+    ("five_hour", "Session (5h)"),
+    ("seven_day", "Weekly"),
+    ("seven_day_opus", "Weekly (Opus)"),
+    ("seven_day_sonnet", "Weekly (Sonnet)"),
 )
 
 _cache: dict = {"at": 0.0, "value": None}
@@ -106,7 +106,7 @@ def parse_usage(body: dict) -> list[dict]:
         model = (entry.get("scope") or {}).get("model") or {}
         name = str(model.get("display_name") or model.get("id") or "").strip()
         pct = _percent(entry.get("percent"))
-        label = f"This week ({name})"
+        label = f"Weekly ({name})"
         if name and pct is not None and label.lower() not in shown:
             rows.append({"label": label, "percent": pct, "resets_at": entry.get("resets_at")})
     return rows

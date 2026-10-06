@@ -66,6 +66,17 @@
 <main>
   <section id="page-overview" class="page">
     <div class="grid" id="overviewGrid">
+      <article data-card="plan" class="card span-12 plan-card" id="planCard" hidden>
+        <div class="card-head"><h2>Usage</h2><span class="muted small" id="planName"></span>
+          <button class="icon-btn small gear" id="planGear" title="Usage settings" aria-label="Usage settings" aria-expanded="false">
+            <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+          </button></div>
+        <div class="plan-settings" id="planSettings" hidden></div>
+        <div class="plan-rows" id="planRows"></div>
+        <p class="note">How much of each plan's limits you've used, for every AI logged in on this computer.
+          It counts all your use of that account (for Claude: Claude Code here and in the cloud, claude.ai and the phone app).</p>
+      </article>
+
       <article data-card="hero" class="card hero">
         <div class="card-label" id="heroLabel">Tokens</div>
         <div class="hero-number" id="heroTotal">–</div>
@@ -80,12 +91,6 @@
 
       <article data-card="kpis" class="card kpis" id="kpis"></article>
 
-      <article data-card="plan" class="card span-12 plan-card" id="planCard" hidden>
-        <div class="card-head"><h2>Plan limits</h2><span class="muted small" id="planName"></span></div>
-        <div class="plan-rows" id="planRows"></div>
-        <p class="note">How much of each subscription's limits you've used, for every AI that's logged in on this computer.
-          Covers all your use of that account (for Claude: Claude Code here and in the cloud, claude.ai and the phone app).</p>
-      </article>
 
       <article data-card="trend" class="card span-8">
         <div class="card-head">

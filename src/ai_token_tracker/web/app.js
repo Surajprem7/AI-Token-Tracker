@@ -911,18 +911,66 @@ function resetsIn(iso) {
   return `Resets in ${text} (${new Date(t).toLocaleString(undefined, { weekday: "short", hour: "2-digit", minute: "2-digit" })})`;
 }
 
+/** "26m", "3h 5m", "2d 21h" until a reset time. */
+function shortUntil(iso) {
+  const t = Date.parse(iso || "");
+  if (!t) return "";
+  const m = Math.max(0, Math.round((t - Date.now()) / 60000));
+  if (m < 60) return `${m}m`;
+  if (m < 24 * 60) return `${Math.floor(m / 60)}h ${m % 60}m`;
+  return `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h`;
+}
+
+const CLOCK = `<svg class="clock" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="9" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 6.5V9l1.8 1.2M6.5 2h3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`;
+
 function planRowsHtml(windows) {
+  const left = store.get("planShowLeft", false);
   return windows.map((w) => {
+    const used = Math.round(w.percent);
     const level = w.percent >= 90 ? "full" : w.percent >= 70 ? "warn" : "";
-    return `<div class="plan-row ${level}"><div class="top"><span>${esc(w.label)}</span><span class="pct">${Math.round(w.percent)}% used</span></div>
-      <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(w.percent)}" aria-label="${esc(w.label)}">
-        <span style="width:${w.percent.toFixed(1)}%"></span></div>
-      <div class="when">${esc(resetsIn(w.resets_at))}</div></div>`;
+    const until = shortUntil(w.resets_at);
+    const when = w.resets_at ? resetsIn(w.resets_at) : "";
+    return `<div class="usage-row ${level}">
+      <div class="top"><span class="lbl">${esc(w.label)}:</span><span class="pct">${left ? `${100 - used}% left` : `${used}%`}</span>
+        ${until ? `<span class="reset" title="${esc(when)}">${CLOCK}${esc(until)}</span>` : ""}</div>
+      <div class="meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${used}" aria-label="${esc(w.label)}: ${used}% used${when ? ", " + esc(when) : ""}">
+        <span style="width:${w.percent.toFixed(1)}%"></span></div></div>`;
   }).join("");
+}
+
+function renderPlanSettings() {
+  const providers = state.limits?.providers || [];
+  const hidden = new Set(store.get("planHidden", []));
+  const box = $("planSettings");
+  box.innerHTML = `<label class="switch-row"><input type="checkbox" id="planLeft" ${store.get("planShowLeft", false) ? "checked" : ""}> Show % left instead of % used</label>`
+    + providers.map((p) => `<label class="switch-row"><input type="checkbox" data-p="${esc(p.id)}" ${hidden.has(p.id) ? "" : "checked"}> Show ${esc(p.name)}</label>`).join("");
+  $("planLeft").onchange = (e) => { store.set("planShowLeft", e.target.checked); drawPlan(); };
+  box.querySelectorAll("input[data-p]").forEach((inp) => {
+    inp.onchange = () => {
+      const h = new Set(store.get("planHidden", []));
+      if (inp.checked) h.delete(inp.dataset.p); else h.add(inp.dataset.p);
+      store.set("planHidden", [...h]);
+      drawPlan();
+    };
+  });
 }
 
 function safeStatusLink(url) {
   return /^https:\/\/(status\.claude\.com|status\.openai\.com|status\.cursor\.com|www\.githubstatus\.com)(\/|$)/.test(url || "") ? url : "#";
+}
+
+function drawPlan() {
+  const card = $("planCard");
+  const all = state.limits?.providers || [];
+  const hidden = new Set(store.get("planHidden", []));
+  const providers = all.filter((p) => !hidden.has(p.id));
+  card.hidden = !all.length;
+  $("planName").textContent = all.length > 1 ? `${all.length} AI plans logged in` : "";
+  $("planRows").innerHTML = providers.map((p) => `
+    <div class="plan-provider">
+      ${all.length > 1 || p.plan ? `<div class="plan-head"><b>${esc(p.name)}</b>${p.plan ? `<span class="muted small">${esc(p.plan)} plan</span>` : ""}</div>` : ""}
+      ${p.available ? planRowsHtml(p.windows) : `<p class="muted small">${esc(p.message || "Limits aren't available.")}</p>`}
+    </div>`).join("") || `<p class="muted small">All plans are hidden. Use the ⚙ button to show them.</p>`;
 }
 
 async function loadPlan(force) {
@@ -942,15 +990,7 @@ async function loadPlan(force) {
     <a href="${safeStatusLink(i.url)}" target="_blank" rel="noopener noreferrer">Status page</a></span>`).join("")
     + (incidents.length ? `<span class="muted small">Missing or late numbers may be caused by this, not by the tracker.</span>` : "");
 
-  const card = $("planCard");
-  const providers = d.providers || [];
-  card.hidden = !providers.length;
-  $("planName").textContent = providers.length ? `${providers.length} AI subscription${providers.length === 1 ? "" : "s"} logged in` : "";
-  $("planRows").innerHTML = providers.map((p) => `
-    <div class="plan-provider">
-      <div class="plan-head"><b>${esc(p.name)}</b>${p.plan ? `<span class="muted small">${esc(p.plan)} plan</span>` : ""}</div>
-      ${p.available ? planRowsHtml(p.windows) : `<p class="muted small">${esc(p.message || "Limits aren't available.")}</p>`}
-    </div>`).join("");
+  drawPlan();
   if (typeof renderWidget === "function") renderWidget();
 }
 
@@ -1276,6 +1316,12 @@ function init() {
   wireCardDrag();
   $("searchBtn").onclick = openPalette;
   $("widgetBtn").onclick = showWidget;
+  $("planGear").onclick = () => {
+    const box = $("planSettings");
+    box.hidden = !box.hidden;
+    $("planGear").setAttribute("aria-expanded", String(!box.hidden));
+    if (!box.hidden) renderPlanSettings();
+  };
   $("widgetOpen").onclick = showWidget;
   $("autostart").onchange = (e) => setAutostart(e.target.checked);
   loadAutostart();
@@ -1337,6 +1383,7 @@ function init() {
   $("contextRefresh").onclick = () => loadContext(true);
   load(false).then(() => { checkUpdates(false); loadPlan(false); });
   setInterval(() => { if (!document.hidden) loadPlan(false); }, 2 * 60 * 1000);
+  setInterval(() => { if (!document.hidden && state.limits) drawPlan(); }, 60 * 1000);  // keep the countdowns current
   setInterval(() => checkUpdates(false), 3 * 3600 * 1000);  // the server itself asks GitHub at most every 6 hours
 }
 

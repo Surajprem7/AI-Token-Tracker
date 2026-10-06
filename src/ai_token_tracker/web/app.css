@@ -381,3 +381,20 @@ body.widget { min-width: 0; }
 .w-foot .text-btn { margin-left: 0; }
 .switch-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; font-size: 14px; cursor: pointer; }
 .switch-row input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+/* ---- usage rows: "Session (5h): 12%   ⏱ 26m" with a thin bar ---- */
+.plan-card .card-head .gear { margin-left: auto; color: var(--accent); }
+.plan-settings { display: grid; gap: 2px; padding: 4px 0 10px; border-bottom: 1px solid var(--grid); margin-bottom: 12px; }
+.plan-settings .switch-row { margin-top: 4px; font-size: 13px; }
+.usage-row { display: grid; gap: 5px; }
+.usage-row .top { display: flex; align-items: baseline; gap: 10px; font-size: 14px; }
+.usage-row .lbl { min-width: 104px; color: var(--ink); }
+.usage-row .pct { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+.usage-row .reset { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+.usage-row .clock { width: 13px; height: 13px; }
+.usage-row .meter { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.usage-row .meter span { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.usage-row.warn .pct { color: #c98500; }
+.usage-row.warn .meter span { background: #fab219; }
+.usage-row.full .pct { color: #d03b3b; }
+.usage-row.full .meter span { background: #d03b3b; }

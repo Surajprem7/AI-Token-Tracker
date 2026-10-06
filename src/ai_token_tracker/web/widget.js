@@ -39,7 +39,7 @@ function resets(iso) {
   const t = Date.parse(iso || "");
   if (!t) return "";
   const m = Math.max(0, Math.round((t - Date.now()) / 60000));
-  return m < 60 ? `${m}m` : m < 48 * 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.round(m / 1440)}d`;
+  return m < 60 ? `${m}m` : m < 24 * 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h`;
 }
 const api = (path, opts = {}) => fetch(path, { ...opts, headers: { "X-Token": TOKEN, ...(opts.headers || {}) } });
 
@@ -73,11 +73,13 @@ async function refreshLimits() {
     for (const w of (p.windows || []).slice(0, 2)) rows.push({ name: p.name, ...w });
   }
   $("wLimits").hidden = !rows.length;
+  const multi = (d.providers || []).filter((p) => (p.windows || []).length).length > 1;
   $("wLimitRows").innerHTML = rows.slice(0, 6).map((r) => {
     const level = r.percent >= 90 ? "full" : r.percent >= 70 ? "warn" : "";
-    return `<div class="plan-row ${level}"><div class="top"><span>${esc(r.name)} · ${esc(r.label)}</span><span class="pct">${Math.round(r.percent)}%</span></div>
-      <div class="meter"><span style="width:${r.percent.toFixed(1)}%"></span></div>
-      ${r.resets_at ? `<div class="when">resets in ${esc(resets(r.resets_at))}</div>` : ""}</div>`;
+    const until = resets(r.resets_at);
+    return `<div class="usage-row ${level}"><div class="top"><span class="lbl">${multi ? esc(r.name) + " · " : ""}${esc(r.label)}:</span>
+      <span class="pct">${Math.round(r.percent)}%</span>${until ? `<span class="reset">⏱ ${esc(until)}</span>` : ""}</div>
+      <div class="meter"><span style="width:${r.percent.toFixed(1)}%"></span></div></div>`;
   }).join("") + (d.incidents || []).map((i) => `<p class="w-incident">${esc(i.name)}: ${esc(i.description)}</p>`).join("");
 }
 
