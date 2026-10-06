@@ -44,8 +44,7 @@ The websites don't show token counts, so the **AI Token Tracker browser extensio
 (the whole chat so far as input, each reply as output, about 4 characters per token) and sends them to the app.
 Its popup also shows your Claude **Session (5h)** and **Weekly** usage, the tokens of each chat, and how many messages you sent
 per ChatGPT/Gemini model in the last 3 hours. The same numbers appear on the websites themselves: in claude.ai's left sidebar,
-and as a small box in the corner on ChatGPT and Gemini (fold it with a click, or turn it off in the popup).
-It shows the Usage numbers per ChatGPT/Gemini model in the last 3 hours. Those sites don't show their limits, so you can enter your plan's limit per model
+and as a small box in the corner on ChatGPT and Gemini (fold it with a click, or turn it off in the popup). Those sites don't show their limits, so you can enter your plan's limit per model
 (*Set limits*) and see a bar and when your oldest message stops counting (idea from lugia19's ChatGPT-Counter userscript).
 
 **Easiest:** in the app, open **Sources** and click **Install in Chrome / Edge**. The app sets up the extension (already connected),
