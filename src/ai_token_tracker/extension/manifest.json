@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Token Tracker",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Estimates the tokens of your chats on claude.ai, chatgpt.com and gemini.google.com, shows your Claude plan usage, and sends them to the AI Token Tracker app on your computer.",
   "icons": {
     "16": "icons/icon16.png",
@@ -20,11 +20,16 @@
   },
   "permissions": [
     "storage",
-    "alarms"
+    "alarms",
+    "scripting"
   ],
   "host_permissions": [
     "http://127.0.0.1/*",
-    "http://localhost/*"
+    "http://localhost/*",
+    "https://claude.ai/*",
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://gemini.google.com/*"
   ],
   "content_scripts": [
     {

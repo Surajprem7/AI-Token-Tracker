@@ -81,6 +81,10 @@ ext.runtime.onMessage.addListener((msg, _sender, reply) => {
       for (const old of keys.slice(MAX_CHATS)) delete chats[old];
       await set({ chats, unsent: [...new Set([...unsent, key])].filter((k) => chats[k]) });
       await sync();
+    } else if (msg.type === "hello" && msg.site) {
+      const { seen = {} } = await get("seen");
+      seen[msg.site] = { at: Date.now(), chat: !!msg.chat };
+      await set({ seen });
     } else if (msg.type === "limits" && msg.limits) {
       await set({ limits: { ...msg.limits, at: Date.now(), unsent: true } });
       await sync();
@@ -101,6 +105,8 @@ ext.runtime.onMessage.addListener((msg, _sender, reply) => {
     } else if (msg.type === "status") {
       await connectFromBundle(false);
       try { return reply({ ok: true, ...(await tracker("/api/web/ping")) }); } catch (e) { return reply({ ok: false, error: String(e.message || e) }); }
+    } else if (msg.type === "usage") {
+      try { return reply({ ok: true, ...(await tracker("/api/web/usage")) }); } catch { return reply({ ok: false }); }
     } else if (msg.type === "open") {
       try { await tracker("/api/web/show", {}); return reply({ ok: true }); } catch (e) { return reply({ ok: false, error: String(e.message || e) }); }
     }
@@ -109,7 +115,18 @@ ext.runtime.onMessage.addListener((msg, _sender, reply) => {
   return true;  // the reply comes later
 });
 
-ext.runtime.onInstalled.addListener(() => connectFromBundle(false).then(sync));
+/** Tabs that were already open when the extension was installed or updated don't run it
+    until they're reloaded; start it in them now. */
+async function startInOpenTabs() {
+  const urls = ["https://claude.ai/*", "https://chatgpt.com/*", "https://chat.openai.com/*", "https://gemini.google.com/*"];
+  try {
+    for (const tab of await ext.tabs.query({ url: urls })) {
+      ext.scripting.executeScript({ target: { tabId: tab.id }, files: ["tokens.js", "content.js"] }).catch(() => {});
+    }
+  } catch { /* no permission: the tabs pick it up when reloaded */ }
+}
+
+ext.runtime.onInstalled.addListener(() => { connectFromBundle(false).then(sync); startInOpenTabs(); });
 ext.runtime.onStartup.addListener(() => connectFromBundle(false));
 ext.alarms.create("sync", { periodInMinutes: 1 });
 ext.alarms.onAlarm.addListener((a) => { if (a.name === "sync") sync(); });

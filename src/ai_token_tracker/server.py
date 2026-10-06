@@ -246,6 +246,10 @@ def make_handler(app: Dashboard, port_ref: list):
                 if not web_usage.key_ok(self.headers.get("X-AITT-Key")):
                     return self._send(403, b'{"error":"bad key"}')
                 return self._send(200, json.dumps({"ok": True, "version": __version__}).encode())
+            if url.path == "/api/web/usage":  # plan usage for the extension's popup
+                if not web_usage.key_ok(self.headers.get("X-AITT-Key")):
+                    return self._send(403, b'{"error":"bad key"}')
+                return self._send(200, json.dumps(limits.status()).encode())
             if url.path.startswith("/api/"):
                 if not self._api_allowed(query):
                     return self._send(403, b'{"error":"bad token"}')

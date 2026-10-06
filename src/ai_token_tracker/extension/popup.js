@@ -28,13 +28,22 @@ async function render() {
   const ping = await ask({ type: "status" });  // also connects a copy installed from the app
   const { chats = {}, limits, connection } = await ext.storage.local.get(["chats", "limits", "connection"]);
 
-  // Usage: Session (5h), Weekly...
+  // Usage: Session (5h), Weekly... from claude.ai if it was open recently, else from the desktop app.
   const rows = $("usageRows");
   rows.textContent = "";
-  $("usageBox").hidden = !(limits && limits.windows && limits.windows.length);
-  if (limits && limits.windows) {
-    $("usageAge").textContent = limits.at ? `· Claude · ${ago(limits.at)}` : "· Claude";
-    for (const w of limits.windows) {
+  let windows = limits && limits.windows && Date.now() - (limits.at || 0) < 30 * 60000 ? limits.windows : null;
+  let source = windows ? `· Claude · ${ago(limits.at)}` : "";
+  if (!windows && ping.ok) {
+    const app = await ask({ type: "usage" });
+    const lines = [];
+    for (const p of app.providers || []) for (const w of p.windows || []) lines.push({ ...w, label: (app.providers.length > 1 ? p.name + " · " : "") + w.label });
+    if (lines.length) { windows = lines; source = "· from the app"; }
+  }
+  if (!windows && limits && limits.windows) { windows = limits.windows; source = `· Claude · ${ago(limits.at)}`; }
+  $("usageBox").hidden = !(windows && windows.length);
+  if (windows) {
+    $("usageAge").textContent = source;
+    for (const w of windows) {
       const row = el("div", "usage-row" + (w.percent >= 90 ? " full" : w.percent >= 70 ? " warn" : ""));
       const top = el("div", "top");
       top.append(el("span", "lbl", w.label + ":"), el("span", "pct", Math.round(w.percent) + "%"));
@@ -68,7 +77,15 @@ async function render() {
       el("span", "s", `${SITE[c.site] || c.site} · ${(c.turns || []).length} replies · ${ago(c.seen)}`));
     ul.append(li);
   }
-  if (!list.length) ul.append(el("li", "muted", "Open a chat on claude.ai, chatgpt.com or gemini.google.com."));
+  if (!list.length) {
+    const { seen = {} } = await ext.storage.local.get("seen");
+    const any = Object.values(seen).some((v) => Date.now() - v.at < 10 * 60000);
+    const inChat = Object.values(seen).some((v) => v.chat && Date.now() - v.at < 10 * 60000);
+    ul.append(el("li", "muted", !any
+      ? "No AI website seen yet. Open claude.ai, chatgpt.com or gemini.google.com (press F5 on a tab that was already open)."
+      : !inChat ? "Open a chat (an address like claude.ai/chat/… or chatgpt.com/c/…) and send a message."
+      : "Reading your chat… it appears here about 30 seconds after a reply finishes."));
+  }
   $("todayTokens").textContent = nf.format(today);
 
   // Connection

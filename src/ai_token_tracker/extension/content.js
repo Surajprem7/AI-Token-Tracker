@@ -9,6 +9,8 @@
    page makes, with your existing login). Results go to this extension's background page,
    which passes them to the AI Token Tracker app on your computer. Nothing goes anywhere else. */
 "use strict";
+if (globalThis.__aittStarted) throw new Error("already running");  // started twice (install + page load)
+globalThis.__aittStarted = true;
 
 const est = (t) => AITT.estimateTokens(t);
 const POLL_MS = 15000;
@@ -165,6 +167,7 @@ let lastSent = "", pending = "", lastLimits = 0;
 
 async function tick() {
   if (document.hidden) return;
+  send({ type: "hello", site: site.site, chat: !!site.chatId() });
   try {
     if (Date.now() - lastLimits > 120000) {
       lastLimits = Date.now();
