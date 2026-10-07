@@ -103,6 +103,7 @@ ext.runtime.onMessage.addListener((msg, _sender, reply) => {
           ? "Saved. The tracker app isn't open right now; chats will be sent when it is." : String(e.message || e) });
       }
     } else if (msg.type === "status") {
+      reloadIfUpdated();
       await connectFromBundle(false);
       try { return reply({ ok: true, ...(await tracker("/api/web/ping")) }); } catch (e) { return reply({ ok: false, error: String(e.message || e) }); }
     } else if (msg.type === "usage") {
@@ -131,5 +132,15 @@ async function startInOpenTabs() {
 
 ext.runtime.onInstalled.addListener(() => { connectFromBundle(false).then(sync); startInOpenTabs(); });
 ext.runtime.onStartup.addListener(() => connectFromBundle(false));
+/** The app updates this extension's folder; Chrome keeps running the old copy until it's reloaded.
+    Reload ourselves when the version on disk is newer than the one running. */
+async function reloadIfUpdated() {
+  try {
+    const onDisk = await (await fetch(ext.runtime.getURL("manifest.json"), { cache: "no-store" })).json();
+    if (onDisk.version && onDisk.version !== ext.runtime.getManifest().version) ext.runtime.reload();
+  } catch { /* keep running */ }
+}
+
 ext.alarms.create("sync", { periodInMinutes: 1 });
+ext.alarms.onAlarm.addListener((a) => { if (a.name === "sync") reloadIfUpdated(); });
 ext.alarms.onAlarm.addListener((a) => { if (a.name === "sync") sync(); });
