@@ -122,6 +122,9 @@ async function startInOpenTabs() {
   try {
     for (const tab of await ext.tabs.query({ url: urls })) {
       ext.scripting.executeScript({ target: { tabId: tab.id }, files: ["tokens.js", "panel.js", "content.js"] }).catch(() => {});
+      if ((tab.url || "").startsWith("https://claude.ai/")) {
+        ext.scripting.executeScript({ target: { tabId: tab.id }, files: ["code-capture.js"], world: "MAIN" }).catch(() => {});
+      }
     }
   } catch { /* no permission: the tabs pick it up when reloaded */ }
 }

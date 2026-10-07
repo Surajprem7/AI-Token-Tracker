@@ -22,7 +22,7 @@ from pathlib import Path
 
 from .core import ApiCall, Session, Turn, Usage
 
-SITES = {"claude": "Claude.ai (web)", "chatgpt": "ChatGPT (web)", "gemini": "Gemini (web)"}
+SITES = {"claude": "Claude.ai (web)", "claudecode": "Claude Code (cloud)", "chatgpt": "ChatGPT (web)", "gemini": "Gemini (web)"}
 SAFE_ID = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
 MAX_TURNS = 5000
 PROMPT_CHARS = 400
@@ -83,7 +83,9 @@ def save_chat(doc: dict) -> int:
         ms = _count(t.get("t"))
         turns.append({"id": _clip(str(t.get("id") or ""), 100), "t": ms or None,
                       "prompt": _clip(t.get("prompt"), PROMPT_CHARS), "model": _clip(t.get("model"), 80),
-                      "input": _count(t.get("input")), "output": _count(t.get("output"))})
+                      "input": _count(t.get("input")), "output": _count(t.get("output")),
+                      "cache_read": _count(t.get("cache_read")), "cache_write": _count(t.get("cache_write")),
+                      "exact": t.get("exact") is True})
     clean = {"site": site, "id": chat, "title": _clip(doc.get("title"), 200), "model": _clip(doc.get("model"), 80),
              "saved": datetime.now(timezone.utc).isoformat(), "turns": turns}
     folder = web_dir() / site
@@ -112,13 +114,15 @@ def load_web_sessions() -> list[Session]:
             for t in doc.get("turns") or []:
                 if not isinstance(t, dict):
                     continue
-                usage = Usage(input=_count(t.get("input")), output=_count(t.get("output")))
+                usage = Usage(input=_count(t.get("input")), output=_count(t.get("output")),
+                              cache_read=_count(t.get("cache_read")), cache_write=_count(t.get("cache_write")))
                 if not usage.total:
                     continue
                 ts = datetime.fromtimestamp(t["t"] / 1000, timezone.utc) if _count(t.get("t")) else None
                 model = _clip(t.get("model") or doc.get("model"), 80) or f"{site} (model not shown)"
                 s.turns.append(Turn(prompt=_clip(t.get("prompt"), PROMPT_CHARS), timestamp=ts, calls=[
-                    ApiCall(ts, model, usage, app=f"{tool.split(' ')[0]} website (estimated)", key=f"web:{site}:{t.get('id')}")]))
+                    ApiCall(ts, model, usage, key=f"web:{site}:{t.get('id')}",
+                            app="claude.ai/code (cloud)" if site == "claudecode" else f"{tool.split(' ')[0]} website (estimated)")]))
             if s.calls:
                 s.title = s.title or next((t.prompt for t in s.turns if t.prompt), "") or "(untitled chat)"
                 out.append(s)

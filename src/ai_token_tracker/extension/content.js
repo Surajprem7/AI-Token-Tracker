@@ -159,6 +159,39 @@ const gemini = {
   },
 };
 
+/* ------------------------------------------------------------ claude.ai/code (exact numbers) */
+
+const code = { replies: new Map(), session: "", timer: null };
+
+function codeSessionId() { return (location.pathname.match(/^\/code\/(session_[A-Za-z0-9]{6,90})/) || [])[1]; }
+
+function codeDoc() {
+  const turns = [...code.replies.values()].sort((a, b) => (a.t || 0) - (b.t || 0)).map((r) => ({
+    id: r.id, t: r.t, prompt: "", model: r.model, exact: true,
+    input: r.usage.input, output: r.usage.output, cache_read: r.usage.cache_read, cache_write: r.usage.cache_write }));
+  const title = (document.title || "").replace(/\s*[-|·]\s*Claude.*$/i, "").trim();
+  return { site: "claudecode", id: code.session, url: location.href, title: title && title !== "Claude Code" ? title : "",
+    model: (turns.find((t) => t.model) || {}).model || "", turns };
+}
+
+window.addEventListener("message", (e) => {
+  if (e.source !== window || !e.data || e.data.__aitt !== "code-usage" || !Array.isArray(e.data.items)) return;
+  const sid = codeSessionId();
+  if (!sid) return;
+  if (sid !== code.session) { code.session = sid; code.replies.clear(); }
+  for (const it of e.data.items.slice(0, 5000)) {
+    if (!it || typeof it.id !== "string" || !it.usage) continue;
+    const old = code.replies.get(it.id);
+    const t = typeof it.t === "number" ? it.t : Date.parse(it.t || "") || (old && old.t) || Date.now();
+    // A streaming reply is reported several times; keep its final (largest) numbers.
+    if (!old || it.usage.output >= old.usage.output) code.replies.set(it.id, { ...it, t, model: it.model || (old && old.model) || "" });
+  }
+  const doc = codeDoc();
+  if (AITT.panel) AITT.panel.chat(doc);
+  clearTimeout(code.timer);
+  code.timer = setTimeout(() => send({ type: "chat", doc: codeDoc() }), 5000);  // after a quiet moment
+});
+
 /* ------------------------------------------------------------ main loop */
 
 const site = location.hostname.endsWith("claude.ai") ? claude
@@ -173,6 +206,11 @@ async function tick() {
       lastLimits = Date.now();
       const limits = await site.limits();
       if (limits) { send({ type: "limits", limits }); if (AITT.panel) AITT.panel.limits(limits); }
+    }
+    if (codeSessionId()) {  // Claude Code in the cloud: numbers come from code-capture.js
+      send({ type: "hello", site: "claudecode", chat: true });
+      if (AITT.panel && code.session === codeSessionId() && code.replies.size) AITT.panel.chat(codeDoc());
+      return;
     }
     const id = site.chatId();
     if (!id) { if (AITT.panel) AITT.panel.clearChat(); return; }

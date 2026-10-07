@@ -4,7 +4,7 @@
 const $ = (id) => document.getElementById(id);
 const ext = globalThis.chrome;
 const nf = new Intl.NumberFormat();
-const SITE = { claude: "Claude.ai", chatgpt: "ChatGPT", gemini: "Gemini" };
+const SITE = { claude: "Claude.ai", claudecode: "Claude Code (cloud)", chatgpt: "ChatGPT", gemini: "Gemini" };
 
 function compact(n) {
   if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
@@ -67,8 +67,9 @@ async function render() {
   for (const c of list) {
     let total = 0;
     for (const t of c.turns || []) {
-      total += (t.input || 0) + (t.output || 0);
-      if ((t.t || c.seen) >= midnight.getTime()) today += (t.input || 0) + (t.output || 0);
+      const n = (t.input || 0) + (t.output || 0) + (t.cache_read || 0) + (t.cache_write || 0);
+      total += n;
+      if ((t.t || c.seen) >= midnight.getTime()) today += n;
     }
     if (ul.childElementCount >= 30) continue;
     const li = el("li");
@@ -103,7 +104,7 @@ function messageCounts(chats, hours) {
   const since = Date.now() - hours * 3600000;
   const per = new Map();
   for (const c of Object.values(chats)) {
-    if (c.site === "claude") continue;  // Claude shows real usage above
+    if (c.site === "claude" || c.site === "claudecode") continue;  // Claude shows real usage above
     for (const t of c.turns || []) {
       if (!t.t || t.t < since || t.sent === false) continue;
       const model = `${SITE[c.site]} · ${t.model || "default model"}`;
@@ -158,6 +159,7 @@ $("capsSave").onclick = async () => {
   $("capsBox").hidden = true;
   ext.storage.local.get("panel", (v) => { $("panelOn").checked = v.panel !== false; });
 $("panelOn").onchange = (e) => ext.storage.local.set({ panel: e.target.checked });
+$("ver").textContent = "v" + ext.runtime.getManifest().version;
 render();
 };
 
@@ -167,6 +169,7 @@ $("connect").onclick = async () => {
   $("connectMsg").textContent = r.ok ? `Connected to AI Token Tracker ${r.version || ""}.` : r.error;
   ext.storage.local.get("panel", (v) => { $("panelOn").checked = v.panel !== false; });
 $("panelOn").onchange = (e) => ext.storage.local.set({ panel: e.target.checked });
+$("ver").textContent = "v" + ext.runtime.getManifest().version;
 render();
 };
 $("change").onclick = () => { $("connectBox").hidden = !$("connectBox").hidden; };
@@ -176,4 +179,5 @@ $("open").onclick = async () => {
 };
 ext.storage.local.get("panel", (v) => { $("panelOn").checked = v.panel !== false; });
 $("panelOn").onchange = (e) => ext.storage.local.set({ panel: e.target.checked });
+$("ver").textContent = "v" + ext.runtime.getManifest().version;
 render();

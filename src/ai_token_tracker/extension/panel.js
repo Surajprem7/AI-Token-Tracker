@@ -95,8 +95,10 @@
     if (state.chat) {
       for (const t of state.chat.turns || []) total += (t.input || 0) + (t.output || 0);
       const chat = el("div", "chat");
-      chat.append(el("div", "muted", "This chat (estimated)"), el("span", "n", nf.format(total)),
-        el("span", "muted", ` tokens · ${(state.chat.turns || []).length} replies`));
+      const exact = (state.chat.turns || []).some((t) => t.exact);
+      for (const t of state.chat.turns || []) total += (t.cache_read || 0) + (t.cache_write || 0);
+      chat.append(el("div", "muted", exact ? "This Claude Code session" : "This chat (estimated)"), el("span", "n", nf.format(total)),
+        el("span", "muted", ` tokens · ${(state.chat.turns || []).length} ${exact ? "calls" : "replies"}`));
       body.append(chat);
     } else {
       body.append(el("div", "muted chat", "Open a chat to see its tokens."));
@@ -136,7 +138,7 @@
     chrome.storage.local.get("chats", ({ chats = {} }) => {
       const midnight = new Date(); midnight.setHours(0, 0, 0, 0);
       let n = 0;
-      for (const c of Object.values(chats)) for (const t of c.turns || []) if ((t.t || c.seen) >= midnight.getTime()) n += (t.input || 0) + (t.output || 0);
+      for (const c of Object.values(chats)) for (const t of c.turns || []) if ((t.t || c.seen) >= midnight.getTime()) n += (t.input || 0) + (t.output || 0) + (t.cache_read || 0) + (t.cache_write || 0);
       if (n !== state.today) { state.today = n; draw(); }
     });
   }

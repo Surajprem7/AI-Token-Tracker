@@ -42,7 +42,8 @@ The **Plan limits** card still shows how much of each subscription they used. If
 
 The websites don't show token counts, so the **AI Token Tracker browser extension** estimates them from the text of each chat
 (the whole chat so far as input, each reply as output, about 4 characters per token) and sends them to the app.
-Its popup also shows your Claude **Session (5h)** and **Weekly** usage, the tokens of each chat, and how many messages you sent
+On **claude.ai/code** (Claude Code in the cloud) it counts each session with the **exact** token numbers the page receives,
+shown as "Claude Code (cloud)" in the app. Its popup also shows your Claude **Session (5h)** and **Weekly** usage, the tokens of each chat, and how many messages you sent
 per ChatGPT/Gemini model in the last 3 hours. The same numbers appear on the websites themselves: in claude.ai's left sidebar,
 and as a small box in the corner on ChatGPT and Gemini (fold it with a click, or turn it off in the popup). Those sites don't show their limits, so you can enter your plan's limit per model
 (*Set limits*) and see a bar and when your oldest message stops counting (idea from lugia19's ChatGPT-Counter userscript).
@@ -169,7 +170,7 @@ This is the quickest way to try it before the installers are built.
 1. Install Python from [python.org](https://www.python.org/downloads/). Keep the "py launcher" option ticked.
 2. Open **PowerShell** in the folder where you saved the `.whl` file and run:
    ```powershell
-   py -m pip install --user "ai_token_tracker-3.4.0-py3-none-any.whl[app]"
+   py -m pip install --user "ai_token_tracker-3.5.0-py3-none-any.whl[app]"
    py -m ai_token_tracker            # opens the dashboard window
    py -m ai_token_tracker --stats    # command-line summary
    ```
@@ -177,7 +178,7 @@ This is the quickest way to try it before the installers are built.
 
 **macOS**
 ```bash
-python3 -m pip install --user "ai_token_tracker-3.4.0-py3-none-any.whl[app]"
+python3 -m pip install --user "ai_token_tracker-3.5.0-py3-none-any.whl[app]"
 python3 -m ai_token_tracker            # opens the dashboard window
 ```
 If macOS doesn't have Python yet, `python3` offers to install the Command Line Tools, or you can use [python.org](https://www.python.org/downloads/).
