@@ -6,3 +6,4 @@ tests/ext/
 tests/*.pem
 tests/ext-peak/
 tests/node_modules
+__pycache__/
