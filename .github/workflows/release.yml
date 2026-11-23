@@ -1,10 +1,12 @@
 name: Release
 
-# Push a tag like v1.0.1 (matching manifest.json) to publish a release with the
-# Chrome and Firefox install files.
+# Publishes a release with the Chrome and Firefox install files. Either:
+#   • Actions → Release → Run workflow: makes the tag v<manifest version> and the release, or
+#   • push a tag like v1.0.1 (it must match the version in manifest.json).
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -14,13 +16,16 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
-      TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
-      - name: Check the tag matches the extension version
+      - name: Work out the version
         run: |
           v=$(python3 -c "import json;print(json.load(open('manifest.json'))['version'])")
-          [ "v$v" = "$TAG" ] || { echo "Tag $TAG but manifest.json says $v"; exit 1; }
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            [ "v$v" = "$GITHUB_REF_NAME" ] || { echo "Tag $GITHUB_REF_NAME but manifest.json says $v"; exit 1; }
+          fi
+          if gh release view "v$v" >/dev/null 2>&1; then echo "Release v$v already exists: raise the version in manifest.json first"; exit 1; fi
+          echo "TAG=v$v" >> "$GITHUB_ENV"
       - name: Build install files
         run: ./build.sh
       - name: Publish
@@ -32,4 +37,4 @@ jobs:
 
           Then open or reload claude.ai.
           EOF
-          gh release create "$TAG" dist/*.zip --title "AI Token Tracker for Claude $TAG" --notes-file notes.md --latest
+          gh release create "$TAG" dist/*.zip --target "$GITHUB_SHA" --title "AI Token Tracker for Claude $TAG" --notes-file notes.md --latest
