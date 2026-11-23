@@ -138,7 +138,12 @@ $("saveKey").addEventListener("click", async () => {
   if (key && !CUT.validKey(key)) { $("keyMsg").textContent = t("keyBad"); return; }
   // Ask for access to Anthropic's API only when a key is actually added.
   if (key && chrome.permissions) {
-    const ok = await chrome.permissions.request({ origins: ["https://api.anthropic.com/*"] }).catch(() => false);
+    // Firefox also asks the user to allow sending the chat's text (its built-in data consent).
+    const isFirefox = typeof browser !== "undefined" && /Firefox\//.test(navigator.userAgent);
+    const want = isFirefox
+      ? { origins: ["https://api.anthropic.com/*"], data_collection: ["websiteContent"] }
+      : { origins: ["https://api.anthropic.com/*"] };
+    const ok = await chrome.permissions.request(want).catch(() => false);
     if (!ok) return;
   }
   await save({ apiKey: key });
