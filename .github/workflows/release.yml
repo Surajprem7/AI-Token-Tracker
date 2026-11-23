@@ -1,13 +1,28 @@
 name: Release
 
-# Push a tag like v1.0.0 to publish a release with the Chrome and Firefox install files.
+# Publishes the Chrome and Firefox install files.
+#   • Push a tag like v4.0.1 (matching manifest.json) to make a new release.
+#   • Or run it by hand ("Run workflow") with a tag, to add the install files to a release that
+#     already exists (used once for v4.0.0, whose old-app files came from the final-app-update branch).
+#
+# Every new release also carries the final update of the old desktop app (from v4.0.0), so copies
+# of the app that haven't updated yet still find it, upgrade their extension and retire.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag, e.g. v4.0.0"
+        required: true
 
 permissions:
   contents: write
+
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
+  GH_TOKEN: ${{ github.token }}
+  LEGACY_TAG: v4.0.0
 
 jobs:
   release:
@@ -15,20 +30,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Check the tag matches the extension version
-        if: startsWith(github.ref, 'refs/tags/')
         run: |
           v=$(python3 -c "import json;print(json.load(open('manifest.json'))['version'])")
-          [ "v$v" = "${GITHUB_REF_NAME}" ] || { echo "Tag ${GITHUB_REF_NAME} but manifest.json says $v"; exit 1; }
+          [ "v$v" = "$TAG" ] || { echo "Tag $TAG but manifest.json says $v"; exit 1; }
       - name: Build install files
         run: ./build.sh
-      - uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          files: dist/*.zip
-          make_latest: true
-          body: |
-            **Install**
-            - **Chrome / Edge / Brave:** download `AITokenTracker-Claude-<version>-chrome.zip` and unzip it. Open `chrome://extensions`, turn on Developer mode, click **Load unpacked** and pick the folder.
-            - **Firefox:** download `AITokenTracker-Claude-<version>-firefox.zip`. Open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on** and pick the zip.
+      - name: Publish
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/*.zip --clobber
+            exit 0
+          fi
+          # Old-app files from the final app update, so old copies keep finding it.
+          gh release download "$LEGACY_TAG" --dir dist \
+            -p 'AITokenTracker-Setup.exe' -p 'AITokenTracker.exe' -p 'AITokenTracker-macOS-AppleSilicon.zip' \
+            -p 'ai_token_tracker-*.whl' || echo "No old-app files found (fine)"
+          cat > notes.md <<'EOF'
+          **Install**
+          - **Chrome / Edge / Brave:** download `AITokenTracker-Claude-<version>-chrome.zip` and unzip it. Open `chrome://extensions`, turn on Developer mode, click **Load unpacked** and pick the folder.
+          - **Firefox:** download `AITokenTracker-Claude-<version>-firefox.zip`. Open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on** and pick the zip.
 
-            Then open or reload claude.ai.
+          Then open or reload claude.ai.
+
+          The `AITokenTracker-Setup.exe`, macOS zip and `.whl` files are only the final update of the old desktop app, which installed copies fetch by themselves. You don't need them.
+          EOF
+          gh release create "$TAG" dist/* --title "AI Token Tracker $TAG" --notes-file notes.md --latest
