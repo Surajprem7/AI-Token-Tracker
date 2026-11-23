@@ -1,0 +1,35 @@
+name: Release
+
+# Push a tag like v1.0.1 (matching manifest.json) to publish a release with the
+# Chrome and Firefox install files.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the tag matches the extension version
+        run: |
+          v=$(python3 -c "import json;print(json.load(open('manifest.json'))['version'])")
+          [ "v$v" = "$TAG" ] || { echo "Tag $TAG but manifest.json says $v"; exit 1; }
+      - name: Build install files
+        run: ./build.sh
+      - name: Publish
+        run: |
+          cat > notes.md <<'EOF'
+          **Install**
+          - **Chrome / Edge / Brave:** download the `-chrome.zip` and unzip it. Open `chrome://extensions`, turn on Developer mode, click **Load unpacked** and pick the folder.
+          - **Firefox:** download the `-firefox.zip`. Open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on** and pick the zip.
+
+          Then open or reload claude.ai.
+          EOF
+          gh release create "$TAG" dist/*.zip --title "AI Token Tracker for Claude $TAG" --notes-file notes.md --latest

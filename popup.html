@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Claude usage</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+<header>
+  <img src="icons/icon48.png" alt="" width="18" height="18">
+  <b data-i18n="popupTitle">Claude usage</b>
+  <button id="refresh" class="icon" data-i18n-title="refresh" aria-label="Refresh">⟳</button>
+</header>
+
+<label id="orgRow" class="org" hidden><span data-i18n="account">Account</span> <select id="org"></select></label>
+
+<section id="limits"><p class="muted">…</p></section>
+<p class="muted small" id="updated"></p>
+
+<section id="chatBox" hidden>
+  <div class="label" data-i18n="thisChat">This chat</div>
+  <div class="title" id="chatTitle"></div>
+  <div class="grid">
+    <div><span class="muted" data-i18n="length">Length</span><b id="chatTokens"></b></div>
+    <div><span class="muted" data-i18n="cache">Cache</span><b id="chatCache"></b></div>
+    <div><span class="muted" data-i18n="nextMsg">Next message</span><b id="chatNext"></b></div>
+    <div><span class="muted" data-i18n="left">Messages left</span><b id="chatLeft"></b></div>
+  </div>
+</section>
+
+<details id="settings">
+  <summary data-i18n="settings">Settings</summary>
+  <label><input type="checkbox" data-key="sidebar"> <span data-i18n="sSidebar"></span></label>
+  <label><input type="checkbox" data-key="composer"> <span data-i18n="sComposer"></span></label>
+  <label><input type="checkbox" data-key="badge"> <span data-i18n="sBadge"></span></label>
+
+  <div class="group">
+    <div class="sub" data-i18n="sBars">Bars to show</div>
+    <div id="bars"></div>
+  </div>
+
+  <div class="group">
+    <label><input type="checkbox" data-key="notify"> <span data-i18n="sNotify"></span></label>
+    <label class="indent"><span data-i18n="sNotifyAt"></span>
+      <select id="notifyAt"><option>50</option><option>70</option><option>80</option><option>90</option><option>100</option></select>%</label>
+  </div>
+
+  <div class="group">
+    <label><span data-i18n="sLang">Language</span> <select id="lang"></select></label>
+  </div>
+
+  <div class="group">
+    <div class="sub" data-i18n="sKey"></div>
+    <div class="row"><input id="apiKey" type="password" placeholder="sk-ant-…" autocomplete="off" spellcheck="false"><button id="saveKey" data-i18n="save">Save</button></div>
+    <p class="muted small" id="keyMsg" data-i18n="sKeyHint"></p>
+  </div>
+</details>
+
+<footer>
+  <a href="https://claude.ai/settings/usage" target="_blank" rel="noopener" data-i18n="usagePage">claude.ai usage page</a>
+  <a href="https://github.com/sponsors/Surajprem7" target="_blank" rel="noopener" data-i18n="support">❤️ Support</a>
+  <span class="muted" id="ver"></span>
+</footer>
+<script src="i18n.js"></script>
+<script src="shared.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>
