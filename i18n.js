@@ -36,6 +36,7 @@
       save: "Save", saved: "Saved", keyBad: "That doesn't look like an Anthropic key (sk-ant-…)",
       usagePage: "claude.ai usage page", notifTitle: "Claude limit reset", notifBody: "Your {l} limit has reset.",
       notSignedIn: "Not signed in to claude.ai", unreachable: "Couldn't reach claude.ai",
+      support: "❤️ Support",
     },
 
     hi: {
@@ -69,6 +70,7 @@
       save: "सहेजें", saved: "सहेजा गया", keyBad: "यह Anthropic कुंजी जैसी नहीं लगती (sk-ant-…)",
       usagePage: "claude.ai उपयोग पेज", notifTitle: "Claude सीमा रीसेट", notifBody: "आपकी {l} सीमा रीसेट हो गई है।",
       notSignedIn: "claude.ai में साइन इन नहीं है", unreachable: "claude.ai तक नहीं पहुँच सके",
+      support: "❤️ समर्थन करें",
     },
 
     es: {
@@ -102,6 +104,7 @@
       save: "Guardar", saved: "Guardado", keyBad: "No parece una clave de Anthropic (sk-ant-…)",
       usagePage: "página de uso de claude.ai", notifTitle: "Límite de Claude reiniciado", notifBody: "Tu límite {l} se ha reiniciado.",
       notSignedIn: "No has iniciado sesión en claude.ai", unreachable: "No se pudo conectar con claude.ai",
+      support: "❤️ Apoyar",
     },
 
     de: {
@@ -135,6 +138,7 @@
       save: "Speichern", saved: "Gespeichert", keyBad: "Das sieht nicht wie ein Anthropic-Schlüssel aus (sk-ant-…)",
       usagePage: "Nutzungsseite von claude.ai", notifTitle: "Claude-Limit zurückgesetzt", notifBody: "Dein Limit {l} wurde zurückgesetzt.",
       notSignedIn: "Nicht bei claude.ai angemeldet", unreachable: "claude.ai nicht erreichbar",
+      support: "❤️ Unterstützen",
     },
 
     fr: {
@@ -168,6 +172,7 @@
       save: "Enregistrer", saved: "Enregistré", keyBad: "Cela ne ressemble pas à une clé Anthropic (sk-ant-…)",
       usagePage: "page d'utilisation de claude.ai", notifTitle: "Limite Claude réinitialisée", notifBody: "Votre limite {l} a été réinitialisée.",
       notSignedIn: "Non connecté à claude.ai", unreachable: "Impossible de joindre claude.ai",
+      support: "❤️ Soutenir",
     },
 
     it: {
@@ -201,6 +206,7 @@
       save: "Salva", saved: "Salvata", keyBad: "Non sembra una chiave Anthropic (sk-ant-…)",
       usagePage: "pagina di utilizzo di claude.ai", notifTitle: "Limite di Claude azzerato", notifBody: "Il tuo limite {l} si è azzerato.",
       notSignedIn: "Accesso a claude.ai non effettuato", unreachable: "Impossibile raggiungere claude.ai",
+      support: "❤️ Sostieni",
     },
 
     pt: {
@@ -234,6 +240,7 @@
       save: "Salvar", saved: "Salvo", keyBad: "Isso não parece uma chave da Anthropic (sk-ant-…)",
       usagePage: "página de uso do claude.ai", notifTitle: "Limite do Claude reiniciado", notifBody: "Seu limite {l} foi reiniciado.",
       notSignedIn: "Não conectado ao claude.ai", unreachable: "Não foi possível acessar o claude.ai",
+      support: "❤️ Apoiar",
     },
 
     id: {
@@ -267,6 +274,7 @@
       save: "Simpan", saved: "Tersimpan", keyBad: "Ini tidak terlihat seperti kunci Anthropic (sk-ant-…)",
       usagePage: "halaman penggunaan claude.ai", notifTitle: "Batas Claude direset", notifBody: "Batas {l} Anda sudah direset.",
       notSignedIn: "Belum masuk ke claude.ai", unreachable: "Tidak dapat menjangkau claude.ai",
+      support: "❤️ Dukung",
     },
 
     ja: {
@@ -300,6 +308,7 @@
       save: "保存", saved: "保存しました", keyBad: "Anthropic のキーではないようです (sk-ant-…)",
       usagePage: "claude.ai の使用量ページ", notifTitle: "Claude の上限がリセット", notifBody: "{l} の上限がリセットされました。",
       notSignedIn: "claude.ai にログインしていません", unreachable: "claude.ai に接続できません",
+      support: "❤️ 支援する",
     },
 
     ko: {
@@ -333,6 +342,7 @@
       save: "저장", saved: "저장됨", keyBad: "Anthropic 키가 아닌 것 같습니다 (sk-ant-…)",
       usagePage: "claude.ai 사용량 페이지", notifTitle: "Claude 한도 초기화", notifBody: "{l} 한도가 초기화되었습니다.",
       notSignedIn: "claude.ai에 로그인하지 않음", unreachable: "claude.ai에 연결할 수 없음",
+      support: "❤️ 후원하기",
     },
   };
 

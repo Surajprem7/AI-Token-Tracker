@@ -95,6 +95,7 @@ const check = (ok, what) => { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (
   await pop.screenshot({ path: out('7-popup-settings.png'), fullPage: true });
   console.log('popup:', (await pop.textContent('body')).replace(/\s+/g, ' ').slice(0, 400));
   check(!(await pop.isHidden('#orgRow')), 'account picker shown (2 accounts)');
+  check(/1M/.test(await pop.textContent('#chatTokens')), 'popup shows the model context (1M)');
   check(await pop.locator('#lang option').count() === 11, '10 languages + automatic');
   await pop.click('summary');
   await pop.selectOption('#org', { label: 'Acme Team' });

@@ -47,7 +47,7 @@ details { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 8px;
 summary { cursor: pointer; color: var(--muted); font-size: 12px; }
 details label { display: flex; gap: 8px; align-items: center; margin-top: 7px; cursor: pointer; }
 
-footer { display: flex; justify-content: space-between; margin-top: 12px; font-size: 12px; }
+footer { display: flex; justify-content: space-between; gap: 8px; margin-top: 12px; font-size: 12px; }
 a { color: var(--blue); text-decoration: none; }
 a:hover { text-decoration: underline; }
 

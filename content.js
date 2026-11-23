@@ -265,7 +265,8 @@
     const f = S.chat ? forecast() : {};
     chrome.storage.local.set({
       chat: S.chat ? {
-        title: S.chat.title, tokens: S.chat.tokens, estimated: S.chat.estimated,
+        title: S.chat.title, tokens: S.chat.tokens, estimated: S.chat.estimated, max: CUT.contextWindow(currentModel()),
+        compactions: S.chat.compactions || 0,
         cachedUntil: S.chat.lastAt ? S.chat.lastAt + CUT.CACHE_MS : null,
         nextPct: f.nextPct, left: f.left, at: Date.now(),
       } : null,

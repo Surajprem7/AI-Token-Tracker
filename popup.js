@@ -50,7 +50,7 @@ function drawChat(chat) {
   if (!chat || Date.now() - chat.at > 30 * 60000) { $("chatBox").hidden = true; return; }
   $("chatBox").hidden = false;
   $("chatTitle").textContent = chat.title || t("untitled");
-  $("chatTokens").textContent = `${chat.estimated ? "≈" : ""}${CUT.fmtTokens(chat.tokens)} / ${CUT.fmtTokens(CUT.CONTEXT)}`;
+  $("chatTokens").textContent = `${chat.estimated ? "≈" : ""}${CUT.fmtTokens(chat.tokens)} / ${CUT.fmtTokens(chat.max || CUT.CONTEXT)}`;
   const cached = chat.cachedUntil && chat.cachedUntil > Date.now();
   $("chatCache").textContent = cached ? t("tLeft", { t: CUT.untilText(chat.cachedUntil) }) : t("expired");
   $("chatCache").className = cached ? "green" : "";
