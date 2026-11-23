@@ -66,6 +66,9 @@ on addons.mozilla.org.
 
 ## Privacy
 
+Full policy: [PRIVACY.md](PRIVACY.md)
+
+
 - It only runs on claude.ai and reads what the page already loads for you, with your existing login.
 - Nothing is sent anywhere else. The one exception is the optional API key: then the open chat's text is sent to
   Anthropic's token counter (Anthropic already has it, it's your Claude chat).

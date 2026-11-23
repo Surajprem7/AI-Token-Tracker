@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AI Token Tracker for Claude",
-  "version": "4.0.0",
+  "version": "1.0.0",
   "description": "See your claude.ai usage limits, chat length and how many messages you have left, right inside claude.ai.",
   "icons": {
     "16": "icons/icon16.png",
