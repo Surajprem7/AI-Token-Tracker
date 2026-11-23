@@ -1,5 +1,3 @@
-__pycache__/
 dist/
-build/
-*.egg-info/
-*.spec
+node_modules/
+.DS_Store
