@@ -39,4 +39,4 @@ Your key is stored only in your browser.
 
 ## Contact
 
-Questions: open an issue at https://github.com/Surajprem7/AI-Token-Tracker/issues
+Questions: email surajtxglive@gmail.com, or open an issue at https://github.com/Surajprem7/AI-Token-Tracker/issues

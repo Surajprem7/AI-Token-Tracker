@@ -13,6 +13,7 @@ and Firefox Add-ons. Copy the text from here; upload the files listed.
 | Marquee tile (1400×560, optional) | `store/images/promo-marquee-1400x560.png` |
 | Privacy policy URL | `https://github.com/Surajprem7/AI-Token-Tracker/blob/main/PRIVACY.md` (use your default branch name if it isn't `main`) |
 | Homepage / support URL | `https://github.com/Surajprem7/AI-Token-Tracker` |
+| Contact email | `surajtxglive@gmail.com` |
 
 ---
 
