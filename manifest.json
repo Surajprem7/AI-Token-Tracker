@@ -42,6 +42,7 @@
         "https://claude.ai/*"
       ],
       "js": [
+        "i18n.js",
         "shared.js",
         "tokenizer.js",
         "content.js"

@@ -4,7 +4,7 @@
    • tells you when a limit you'd used up has reset;
    • counts tokens exactly with Anthropic's free token counter, if you added an API key. */
 "use strict";
-if (typeof importScripts === "function") importScripts("shared.js");   // Chrome; Firefox loads shared.js itself
+if (typeof importScripts === "function") importScripts("i18n.js", "shared.js");   // Chrome; Firefox loads shared.js itself
 
 const REFRESH_MIN = 5;
 const COUNT_MODELS = ["claude-sonnet-4-5", "claude-haiku-4-5"];       // fallbacks for the token counter
@@ -22,34 +22,38 @@ async function fetchJSON(url) {
   return res.json();
 }
 
-async function findOrg() {
-  const orgs = await fetchJSON("https://claude.ai/api/organizations");
-  const pick = (orgs || []).find((o) => (o.capabilities || []).includes("chat")) || (orgs || [])[0];
-  const id = pick ? pick.uuid : null;
-  await chrome.storage.local.set({ orgId: id });
-  return id;
+const chatOrgs = (orgs) => (orgs || []).filter((o) => o && o.uuid && (!o.capabilities || o.capabilities.includes("chat")));
+
+/** Every organisation (account) you can chat in: personal, team, ... */
+async function listOrgs() {
+  const orgs = chatOrgs(await fetchJSON("https://claude.ai/api/organizations"));
+  await chrome.storage.local.set({ orgs: orgs.map((o) => ({ uuid: o.uuid, name: o.name || "" })) });
+  return orgs;
 }
 
+/** Refreshes the usage of every account; the one open on claude.ai is also stored as `usage`. */
 async function refresh() {
   await getSettings();
   try {
-    let { orgId } = await chrome.storage.local.get("orgId");
-    if (!orgId) orgId = await findOrg();
-    if (!orgId) return { ok: false, error: CUT.t("notSignedIn") };
-    let data;
-    try {
-      data = await fetchJSON(`https://claude.ai/api/organizations/${orgId}/usage`);
-    } catch (e) {
-      // The saved organisation may belong to another account: look it up again once.
-      if (!/^(403|404)$/.test(e.message)) throw e;
-      orgId = await findOrg();
-      if (!orgId) return { ok: false, error: CUT.t("notSignedIn") };
-      data = await fetchJSON(`https://claude.ai/api/organizations/${orgId}/usage`);
+    const orgs = await listOrgs();
+    if (!orgs.length) return { ok: false, error: CUT.t("notSignedIn") };
+    let { orgId, usageByOrg } = await chrome.storage.local.get(["orgId", "usageByOrg"]);
+    if (!orgId || !orgs.some((o) => o.uuid === orgId)) {
+      orgId = orgs[0].uuid;                      // the page tells us the real one when claude.ai is open
+      await chrome.storage.local.set({ orgId });
     }
-    const limits = CUT.parseUsage(data);
-    if (!limits.length) return { ok: true, empty: true };     // free plan: the page fills it from the chat stream
-    await chrome.storage.local.set({ usage: { limits, fetchedAt: Date.now(), orgId } });
-    return { ok: true };
+    usageByOrg = usageByOrg || {};
+    let any = false;
+    for (const o of orgs) {
+      try {
+        const limits = CUT.parseUsage(await fetchJSON(`https://claude.ai/api/organizations/${o.uuid}/usage`));
+        if (limits.length) { usageByOrg[o.uuid] = { limits, fetchedAt: Date.now(), orgId: o.uuid }; any = true; }
+      } catch (e) { /* this account has no usage data: skip it */ }
+    }
+    const patch = { usageByOrg };
+    if (usageByOrg[orgId]) patch.usage = usageByOrg[orgId];
+    await chrome.storage.local.set(patch);
+    return any ? { ok: true } : { ok: true, empty: true };   // free plan: the page fills it from the chat stream
   } catch (e) {
     return { ok: false, error: /^(401|403)$/.test(e.message) ? CUT.t("notSignedIn") : CUT.t("unreachable") };
   }

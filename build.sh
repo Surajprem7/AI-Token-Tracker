@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 VERSION=$(python3 -c "import json;print(json.load(open('manifest.json'))['version'])")
-FILES=(background.js content.js hook.js shared.js tokenizer.js styles.css popup.html popup.js popup.css icons)
+FILES=(i18n.js background.js content.js hook.js shared.js tokenizer.js styles.css popup.html popup.js popup.css icons)
 rm -rf dist && mkdir -p dist/tmp
 
 build() {

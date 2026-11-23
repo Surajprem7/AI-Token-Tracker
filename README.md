@@ -10,18 +10,23 @@ No app, no account, no setup: install it and open claude.ai.
 **In claude.ai's left sidebar: a "Usage" section**
 - One bar per limit on your plan: **Session (5h)**, **Weekly**, per-model weeklies (Opus, Sonnet…) and **Extra usage** if you have it on
 - The percentage used (blue, amber from 70%, red from 90%) and **when each one resets**
+- A **PEAK** tag on weekdays 5–11 AM Pacific, when the session limit runs down faster (hover for the times in your own clock)
+- A thin mark on the session bar showing the weekly limit for the model you're using
 - Click the header to fold it into one line
 
 **Under the message box: one line about the chat you're in**
-- **Session** bar with its reset timer
-- **Chat length** in tokens, out of the 200k context window
+- **Session** bar with its reset timer, the weekly mark and the PEAK tag
+- **Chat length** in tokens, out of the context window of the model you picked (200K to 1M, from Claude's help centre)
+- **Compacted 2×**: how many times Claude has summarised the start of a long chat; the length counts from the latest summary
 - **Cached 3m / Not cached**: while Claude still has the chat cached (about 5 minutes after the last reply), the next message uses much less of your limit
 - **Next ≈ 0.8%**: roughly how much of your session the next message will use
 - **~95 msgs left**: about how many more messages fit in your limits
 
 Hover over anything for an explanation.
 
-**Toolbar popup**: the same bars, the current chat's numbers and the settings. The icon shows your session % as a badge.
+**Toolbar popup**: the same bars, the current chat's numbers and the settings. If you have more than one account (personal, team) pick which one to see. The icon shows your session % as a badge.
+
+**claude.ai/code**: the session line also shows under Claude Code's prompt box on the web.
 
 **Notifications**: when a limit you'd pushed past a level you choose (default 90%) resets, you get a notification.
 
@@ -63,7 +68,7 @@ on addons.mozilla.org.
 - Show or hide the sidebar section, the line under the message box and the toolbar badge
 - Choose which bars to show
 - Reset notifications on/off, and from which level
-- Language: English, हिन्दी, Español (or automatic)
+- Language: English, हिन्दी, Español, Deutsch, Français, Italiano, Português, Bahasa Indonesia, 日本語, 한국어 (or automatic)
 - Anthropic API key (optional): when you save one, the browser asks to allow access to `api.anthropic.com`
 
 ## Privacy
@@ -84,7 +89,8 @@ Full policy: [PRIVACY.md](PRIVACY.md)
 | `build.sh` | Builds the Chrome and Firefox install zips into `dist/` |
 | `hook.js` | Runs in the page; notices when you send a message and when the reply finishes |
 | `content.js` | Reads your usage and the open chat, draws the sidebar section and the line under the message box |
-| `shared.js` | Usage parsing, formatting and translations, shared by everything |
+| `shared.js` | Usage parsing, peak hours, context windows and formatting, shared by everything |
+| `i18n.js` | Translations (10 languages) |
 | `background.js` | Background refresh, toolbar badge, reset notifications, exact token counting |
 | `popup.html/.js/.css` | The toolbar popup and settings |
 | `styles.css` | Styles for what's added to claude.ai |

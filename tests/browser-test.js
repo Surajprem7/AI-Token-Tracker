@@ -8,6 +8,9 @@ const CHAT = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
 const out = (n) => path.join(__dirname, 'out', n);
 fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
 
+let failed = 0;
+const check = (ok, what) => { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (!ok) failed++; };
+
 (async () => {
   const profile = fs.mkdtempSync('/tmp/cut-profile-');
   const ctx = await chromium.launchPersistentContext(profile, {
@@ -47,6 +50,18 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.locator('main').screenshot({ path: out('3-composer.png') });
   await page.locator('nav').screenshot({ path: out('4-sidebar.png') });
 
+  // New features: compactions, context window of the model, weekly mark, peak badge.
+  const strip = await page.textContent('.cut-strip');
+  check(/Compacted 1×/.test(strip), 'compaction count shown');
+  check(/\/ 1M tokens/.test(strip), 'context window of Opus 5.5 (1M)');
+  check(await page.locator('.cut-strip .cut-mark').count() === 1, 'weekly mark on the session bar');
+  check(await page.locator('.cut-side .cut-mark').count() === 1, 'weekly mark in the sidebar');
+  check((await page.getAttribute('.cut-strip .cut-has-mark', 'title')).includes('Weekly · Opus'), 'mark is the Opus weekly limit');
+  check(/workspace/.test(await page.getAttribute('.cut-strip-right > span', 'title')), 'workspace note in tooltip');
+  check(await page.locator('.cut-peak').count() === (process.env.PEAK ? 2 : 0), 'peak badge ' + (process.env.PEAK ? 'shown' : 'hidden'));
+  check(await page.evaluate(() => document.querySelector('.rounded-composer .cut-strip') !== null), 'line sits inside the message box');
+  check(await page.evaluate(() => document.querySelector('.px-2.mt-4 > .cut-side') !== null), 'sidebar section in claude.ai\'s sidebar column');
+
   // Collapse the sidebar section.
   await page.click('.cut-side-head');
   await page.waitForTimeout(500);
@@ -58,6 +73,14 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await page.addStyleTag({ content: 'body{background:#262624!important;color:#e8e6dc!important} nav{background:#1f1e1d!important;border-color:#333!important} fieldset{background:#30302e!important;border-color:#444!important} .bubble{background:#30302e!important}' });
   await page.waitForTimeout(300);
   await page.screenshot({ path: out('5-dark.png') });
+
+  // claude.ai/code page.
+  const code = await ctx.newPage();
+  await code.goto('https://claude.ai/code');
+  await code.waitForSelector('.cut-strip', { timeout: 10000 });
+  check(/Session/.test(await code.textContent('.cut-strip')), 'session line on claude.ai/code');
+  await code.screenshot({ path: out('8-code.png') });
+  await code.close();
 
   // Popup.
   const pop = await ctx.newPage();
@@ -71,6 +94,17 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   await pop.waitForTimeout(300);
   await pop.screenshot({ path: out('7-popup-settings.png'), fullPage: true });
   console.log('popup:', (await pop.textContent('body')).replace(/\s+/g, ' ').slice(0, 400));
+  check(!(await pop.isHidden('#orgRow')), 'account picker shown (2 accounts)');
+  check(await pop.locator('#lang option').count() === 11, '10 languages + automatic');
+  await pop.click('summary');
+  await pop.selectOption('#org', { label: 'Acme Team' });
+  await pop.waitForTimeout(500);
+  const acme = await pop.textContent('#limits');
+  check(/8%/.test(acme) && /51%/.test(acme), 'second account usage shown');
+  check(await pop.isHidden('#chatBox'), 'chat box hidden for the other account');
+  await pop.screenshot({ path: out('9-popup-team.png'), fullPage: true });
+  await pop.selectOption('#org', { label: 'Personal' });
+  await pop.click('summary');
 
   // Hindi.
   await pop.selectOption('#lang', 'hi');
@@ -85,5 +119,7 @@ fs.mkdirSync(path.join(__dirname, 'out'), { recursive: true });
   console.log('learned:', JSON.stringify(stored.learn), 'chat:', JSON.stringify(stored.chat));
 
   console.log('errors:', errors.length ? errors : 'none');
+  console.log(failed ? `FAILED ${failed} check(s)` : 'ALL CHECKS PASSED');
+  if (failed || errors.length) process.exitCode = 1;
   await ctx.close();
 })().catch((e) => { console.error('FAIL', e); process.exit(1); });

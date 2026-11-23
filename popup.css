@@ -63,3 +63,6 @@ select, input[type=password], .row button {
 .row input { flex: 1; min-width: 0; }
 .row button { cursor: pointer; }
 .row button:hover { background: var(--track); }
+
+.org { display: flex; align-items: center; gap: 8px; margin: -4px 0 12px; font-size: 12px; color: var(--muted); }
+.org select { flex: 1; min-width: 0; }

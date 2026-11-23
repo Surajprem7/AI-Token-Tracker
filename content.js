@@ -34,6 +34,7 @@
   const ROOT_UUID = "00000000-0000-4000-8000-000000000000";
   const IMAGE_TOKENS = 1600;     // rough size of one image in context
   const DOC_TOKENS = 1500;       // rough size of an uploaded file whose text we can't see
+  const SUMMARY_TOKENS = 5000;   // rough size of a compaction summary whose text we can't see
   const t = CUT.t;
 
   /* ------------------------------------------------------------ data */
@@ -63,7 +64,10 @@
     }
     S.usage = { limits, fetchedAt: Date.now(), orgId: S.orgId };
     S.usageError = false;
-    chrome.storage.local.set({ usage: S.usage, orgId: S.orgId });
+    const usage = S.usage;
+    chrome.storage.local.get("usageByOrg").then(({ usageByOrg }) => {
+      chrome.storage.local.set({ usage, orgId: usage.orgId, usageByOrg: { ...(usageByOrg || {}), [usage.orgId]: usage } });
+    });
     render();
   }
 
@@ -80,6 +84,14 @@
       render();
     }
   }
+
+  /** The model chosen in claude.ai's model picker, e.g. "Opus 5.5" (null if not found). */
+  function pickerModel() {
+    const el = document.querySelector('[data-testid="model-selector-dropdown"]');
+    const text = el && el.textContent.trim();
+    return text && CUT.modelKey(text) ? text : null;
+  }
+  const currentModel = () => (S.chat && S.chat.model) || pickerModel();
 
   const chatIdFromUrl = () => (location.pathname.match(/\/chat\/([0-9a-f-]{36})/) || [])[1] || null;
 
@@ -129,7 +141,9 @@
 
   async function refreshChat() {
     const id = chatIdFromUrl();
-    if (!id) { S.chat = null; saveChat(); render(); return; }
+    // Not a chat (new chat, settings, claude.ai/code): nothing to count. The popup keeps
+    // showing the last chat you had open.
+    if (!id) { S.chat = null; render(); return; }
     if (S.loadingChat === id) { S.reloadChat = true; return; }
     S.loadingChat = id;
     try {
@@ -140,25 +154,45 @@
       let leaf = byId.get(conv.current_leaf_message_uuid) || msgs[msgs.length - 1];
       const leafKey = leaf ? leaf.uuid + (leaf.updated_at || "") : "";
       const lastAt = leaf ? Date.parse(leaf.updated_at || leaf.created_at) || null : null;
-      let tokens = 0, extra = 0, estimated = !!conv.project_uuid, guard = 0;
+      // The branch on screen, oldest first.
+      const branch = [];
+      for (let guard = 0; leaf && guard < 10000; guard++) {
+        branch.push(leaf);
+        if (!leaf.parent_message_uuid || leaf.parent_message_uuid === ROOT_UUID) break;
+        leaf = byId.get(leaf.parent_message_uuid);
+      }
+      branch.reverse();
+      // Compaction: when a chat gets too long, claude.ai replaces its start with a summary. It shows
+      // as a message with a compaction_summary, or as an empty reply right after a reply. Only what
+      // comes after the latest one is in the context, plus the summary itself.
+      let from = 0, compactions = 0, summaryTokens = 0;
+      branch.forEach((m, i) => {
+        const summary = m.compaction_summary;
+        const hasSummary = summary && (typeof summary === "string" ? summary.trim() : summary.length);
+        const divider = m.sender === "assistant" && !(m.content || []).length && i > 0 && branch[i - 1].sender === "assistant";
+        if (!hasSummary && !divider) return;
+        compactions++;
+        from = i + 1;
+        summaryTokens = hasSummary ? CUT_countTokens(typeof summary === "string" ? summary : blockText({ content: summary })) : SUMMARY_TOKENS;
+      });
+      let tokens = summaryTokens, extra = 0, estimated = !!conv.project_uuid || (compactions > 0 && !summaryTokens);
       const texts = [];
-      while (leaf && guard++ < 10000) {
-        const r = messageTokens(leaf);
+      for (const m of branch.slice(from)) {
+        const r = messageTokens(m);
         tokens += r.tokens;
         extra += r.extra;
         texts.push(r.text);
         estimated = estimated || r.estimated;
-        if (!leaf.parent_message_uuid || leaf.parent_message_uuid === ROOT_UUID) break;
-        leaf = byId.get(leaf.parent_message_uuid);
       }
-      const model = conv.model || (S.chat && S.chat.id === id ? S.chat.model : null);
+      const model = conv.model || pickerModel() || (S.chat && S.chat.id === id ? S.chat.model : null);
       let exact = false;
       if (S.settings.apiKey && texts.length) {
-        const n = await exactCount(id, leafKey, texts.reverse().join("\n\n"), model);
-        if (n != null) { tokens = n + extra; exact = true; }
+        const n = await exactCount(id, leafKey, texts.join("\n\n"), model);
+        if (n != null) { tokens = n + extra + summaryTokens; exact = true; }
       }
       if (chatIdFromUrl() === id) {
-        S.chat = { id, tokens, lastAt, model, title: conv.name || "", estimated: estimated || !exact, exact };
+        S.chat = { id, tokens, lastAt, model, title: conv.name || "", estimated: estimated || !exact, exact,
+          compactions, workspace: !!conv.workspace_upgraded };
         saveChat();
         render();
       }
@@ -180,6 +214,9 @@
     return (isCached() ? 0.1 * L : L) + growth();
   }
 
+  // The session limit runs down faster at peak times, so it's learned separately then.
+  const learnKey = (key, peak) => (key === "session" && peak ? "session@peak" : key);
+
   function rate(family, key) {
     const r = S.learn[family] && S.learn[family][key];
     return r && r.pct >= 2 && r.tok >= 2000 ? r.pct / r.tok : null;
@@ -189,10 +226,10 @@
   function forecast() {
     const out = { nextPct: null, left: null };
     if (!S.usage) return out;
-    const fam = CUT.family(S.chat && S.chat.model), cost = nextCost();
+    const fam = CUT.family(currentModel()), cost = nextCost(), peak = CUT.isPeak();
     for (const l of S.usage.limits) {
       if (l.key === "extra") continue;
-      const r = rate(fam, l.key);
+      const r = rate(fam, learnKey(l.key, peak));
       if (!r) continue;
       const per = r * cost;
       if (l.key === "session") out.nextPct = per;
@@ -215,8 +252,9 @@
         if (!after || before.key === "extra") continue;
         const sameWindow = before.resetsAt && after.resetsAt && Math.abs(after.resetsAt - before.resetsAt) < 15 * 60000;
         if (!sameWindow || after.pct < before.pct) continue;
-        const r = bucket[before.key] || { pct: 0, tok: 0 };
-        bucket[before.key] = { pct: 0.85 * r.pct + (after.pct - before.pct), tok: 0.85 * r.tok + cost };
+        const k = learnKey(before.key, p.peak);
+        const r = bucket[k] || { pct: 0, tok: 0 };
+        bucket[k] = { pct: 0.85 * r.pct + (after.pct - before.pct), tok: 0.85 * r.tok + cost };
       }
     }
     chrome.storage.local.set({ learn: S.learn });
@@ -243,7 +281,7 @@
     if (d.type === "send") {
       const same = S.chat && S.chat.id === d.chatId;
       S.pending = {
-        chatId: d.chatId, model: same ? S.chat.model : null,
+        chatId: d.chatId, model: same ? S.chat.model : pickerModel(), peak: CUT.isPeak(),
         L0: same ? S.chat.tokens : 0, cached: same ? isCached() : false,
         limits: S.usage ? S.usage.limits.map((l) => ({ ...l })) : [],
       };
@@ -272,12 +310,38 @@
     return e;
   };
 
-  function bar(pct, extraCls) {
+  /** A bar; `mark` ({ pct, label }) adds a thin line at another limit's level. */
+  function bar(pct, extraCls, mark) {
     const track = el("div", "cut-track" + (extraCls ? " " + extraCls : ""));
     const fill = el("div", "cut-fill cut-" + CUT.color(pct));
     fill.style.width = Math.max(pct > 0 ? 2 : 0, Math.min(100, pct)) + "%";
     track.appendChild(fill);
+    if (mark) {
+      const m = el("div", "cut-mark");
+      m.style.left = Math.min(100, Math.max(0, mark.pct)) + "%";
+      track.appendChild(m);
+      track.classList.add("cut-has-mark");
+      track.title = t("tipMarker", { l: mark.label });
+    }
     return track;
+  }
+
+  /** The weekly limit that applies to the model in use (all-models weekly or that model's own),
+      whichever is higher: shown as a mark on the session bar. */
+  function weeklyMark() {
+    if (!S.usage) return null;
+    const fam = CUT.family(currentModel());
+    const fits = S.usage.limits.filter((l) => l.key === "weekly" || (fam !== "default" && l.key === "weekly_" + fam));
+    if (!fits.length) return null;
+    const top = fits.reduce((a, b) => (b.pct > a.pct ? b : a));
+    return { pct: top.pct, label: t("marker", { l: CUT.label(top), p: Math.round(top.pct) }) };
+  }
+
+  function peakBadge() {
+    if (!CUT.isPeak()) return null;
+    const b = el("span", "cut-peak", t("peak"));
+    b.title = t("tipPeak", CUT.peakLocal());
+    return b;
   }
 
   const visibleLimits = () => (S.usage ? S.usage.limits.filter((l) => !S.settings.hidden.includes(l.key)) : []);
@@ -293,16 +357,33 @@
     return null;
   }
 
+  /** Where claude.ai's own layouts want our section: { parent, before } or null. */
+  function knownSidebarSpot() {
+    // Newer layout: a scrolling area whose recents block is a direct child.
+    const scroll = document.querySelector(".dframe-sidebar-body .dframe-nav-scroll");
+    if (scroll) return { parent: scroll, before: scroll.querySelector(":scope > .dframe-recents-by-mode") };
+    // Classic layout: the last block of the sidebar's scrolling column; ours goes at its top.
+    const column = document.querySelector("nav .flex.flex-grow.flex-col.overflow-y-auto");
+    const blocks = column ? column.querySelectorAll(".flex-1.relative") : [];
+    const last = blocks[blocks.length - 1];
+    const main = last && (last.querySelector(".px-2.mt-4") || last.querySelector(".px-2.pt-2"));
+    if (main) return { parent: main, before: main.firstElementChild };
+    return null;
+  }
+
   function placeSidebar() {
-    const nav = document.querySelector("nav");
+    const nav = document.querySelector(".dframe-sidebar-body") || document.querySelector("nav");
     if (!S.settings.sidebar || !nav || nav.getBoundingClientRect().width < 150) {
       if (sideBox) sideBox.remove();
       return null;
     }
     if (!sideBox) sideBox = el("section", "cut-side");
     if (nav.contains(sideBox)) return sideBox;
-    const recents = findRecents(nav);
-    if (recents) {
+    const spot = knownSidebarSpot();
+    const recents = spot ? null : findRecents(nav);
+    if (spot) {
+      spot.parent.insertBefore(sideBox, spot.before && spot.before !== sideBox ? spot.before : null);
+    } else if (recents) {
       // Climb while the heading is the first thing in its parent, to reach the whole
       // "Recents" block, and put ours just above it.
       let block = recents;
@@ -337,6 +418,8 @@
       if (s) {
         const line = el("div", "cut-row-top cut-collapsed-line");
         line.append(el("span", "cut-pct cut-t-" + CUT.color(s.pct), Math.round(s.pct) + "%"), el("span", "cut-muted", "⏱ " + CUT.untilText(s.resetsAt)));
+        const peak = peakBadge();
+        if (peak) line.appendChild(peak);
         box.appendChild(line);
       }
       return;
@@ -352,8 +435,10 @@
       const top = el("div", "cut-row-top");
       const left = el("span", "cut-row-left");
       left.append(el("span", "cut-label", CUT.label(l)), el("span", "cut-pct cut-t-" + CUT.color(l.pct), Math.round(l.pct) + "%"));
+      const peak = l.key === "session" ? peakBadge() : null;
+      if (peak) left.appendChild(peak);
       top.append(left, el("span", "cut-muted", l.note || (l.resetsAt ? "⏱ " + CUT.untilText(l.resetsAt) : "")));
-      row.append(top, bar(l.pct));
+      row.append(top, bar(l.pct, null, l.key === "session" ? weeklyMark() : null));
       row.title = `${CUT.label(l)}: ${l.note || Math.round(l.pct) + "%"}` +
         (l.resetsAt ? ` · ${t("resetsIn", { t: new Date(l.resetsAt).toLocaleString() })}` : "");
       box.appendChild(row);
@@ -370,9 +455,15 @@
 
   let strip = null;
 
+  /** The element our line goes right after. Works on chats and on claude.ai/code. */
   function findComposer() {
-    // The message box is the last editor on the page (editing an earlier message adds another one above it).
-    const editors = document.querySelectorAll('[data-testid="chat-input"], div.ProseMirror[contenteditable="true"], fieldset textarea');
+    // claude.ai's message box: a rounded box whose inner block holds the input. Our line goes
+    // after that block, inside the box, so it stays with the box in every layout.
+    const input = document.querySelector('[data-testid="chat-input"], [data-testid="code-prompt-input"]');
+    const inner = input && input.closest(".rounded-composer > .relative.w-full.min-w-0, .bg-surface-3 > .relative.w-full.min-w-0");
+    if (inner) return inner;
+    // Otherwise: the last editor on the page (editing an earlier message adds another one above it).
+    const editors = document.querySelectorAll('[data-testid="chat-input"], [data-testid="code-prompt-input"], div.ProseMirror[contenteditable="true"], fieldset textarea');
     const editor = editors[editors.length - 1];
     if (!editor) return null;
     const fs = editor.closest("fieldset");
@@ -395,21 +486,31 @@
     const left = el("div", "cut-strip-left");
     const session = S.usage && S.usage.limits.find((l) => l.key === "session");
     if (session && !S.settings.hidden.includes("session")) {
-      left.append(el("span", "cut-muted", CUT.t("session")), el("span", "cut-pct cut-t-" + CUT.color(session.pct), Math.round(session.pct) + "%"), bar(session.pct, "cut-track-mini"));
+      left.append(el("span", "cut-muted", CUT.t("session")), el("span", "cut-pct cut-t-" + CUT.color(session.pct), Math.round(session.pct) + "%"), bar(session.pct, "cut-track-mini", weeklyMark()));
       if (session.resetsAt) left.appendChild(el("span", "cut-muted", "⏱ " + CUT.untilText(session.resetsAt)));
+      const peak = peakBadge();
+      if (peak) left.appendChild(peak);
       left.title = t("tipSession");
     }
     strip.appendChild(left);
 
     const right = el("div", "cut-strip-right");
     if (S.chat) {
-      const ctxPct = (S.chat.tokens / CUT.CONTEXT) * 100;
+      const max = CUT.contextWindow(currentModel());
+      const ctxPct = (S.chat.tokens / max) * 100;
       const len = el("span");
       len.append(el("span", "cut-muted", t("chat") + " "),
         el("b", ctxPct >= 80 ? "cut-t-" + CUT.color(ctxPct + 10) : null, (S.chat.exact ? "" : "≈") + CUT.fmtTokens(S.chat.tokens)),
-        el("span", "cut-muted", " / " + CUT.fmtTokens(CUT.CONTEXT) + " " + t("tokens")));
-      len.title = [t("tipLength", { max: CUT.fmtTokens(CUT.CONTEXT) }), S.chat.exact ? t("tipExact") : S.chat.estimated ? t("tipEstimated") : "", t("tipSystem")].filter(Boolean).join("\n");
+        el("span", "cut-muted", " / " + CUT.fmtTokens(max) + " " + t("tokens")));
+      len.title = [t("tipLength", { max: CUT.fmtTokens(max) }), S.chat.workspace ? t("tipWorkspace") : "",
+        S.chat.exact ? t("tipExact") : S.chat.estimated ? t("tipEstimated") : "", t("tipSystem")].filter(Boolean).join("\n");
       right.appendChild(len);
+
+      if (S.chat.compactions) {
+        const c = el("span", "cut-muted", t("compactions", { n: S.chat.compactions }));
+        c.title = t("tipCompactions", { n: S.chat.compactions });
+        right.appendChild(c);
+      }
 
       const cached = isCached();
       const c = el("span", cached ? "cut-t-green" : "cut-muted", cached ? t("cached", { t: CUT.untilText(S.chat.lastAt + CUT.CACHE_MS) }) : t("notCached"));

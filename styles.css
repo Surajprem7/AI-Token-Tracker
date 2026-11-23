@@ -27,6 +27,17 @@
   overflow: hidden;
 }
 .cut-fill { height: 100%; border-radius: inherit; transition: width .4s ease; }
+.cut-track.cut-has-mark { position: relative; overflow: visible; }
+.cut-track.cut-has-mark .cut-fill { border-radius: 999px; }
+.cut-mark {
+  position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px;
+  background: currentColor; opacity: .55; border-radius: 1px; pointer-events: none;
+}
+.cut-peak {
+  font-size: 9.5px; font-weight: 700; letter-spacing: .04em; line-height: 1;
+  padding: 2px 4px; border-radius: 4px; cursor: help;
+  color: var(--cut-amber); background: color-mix(in srgb, var(--cut-amber) 15%, transparent);
+}
 .cut-fill.cut-blue  { background: var(--cut-blue); }
 .cut-fill.cut-amber { background: var(--cut-amber); }
 .cut-fill.cut-red   { background: var(--cut-red); }

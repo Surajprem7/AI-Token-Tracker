@@ -87,13 +87,24 @@ function drawSettings(usage) {
 }
 
 async function load() {
-  const r = await chrome.storage.local.get(["usage", "chat", "settings"]);
+  const r = await chrome.storage.local.get(["usage", "usageByOrg", "orgs", "orgId", "chat", "settings"]);
   settings = CUT.settings(r.settings);
   CUT.setLang(settings.lang);
   translatePage();
-  drawLimits(r.usage);
-  drawChat(r.chat);
-  drawSettings(r.usage);
+  // Several accounts (personal, team…): pick which one to look at. Default: the one open on claude.ai.
+  const orgs = r.orgs || [];
+  const view = orgs.some((o) => o.uuid === settings.viewOrg) ? settings.viewOrg : r.orgId;
+  $("orgRow").hidden = orgs.length < 2;
+  $("org").replaceChildren(...orgs.map((o, i) => {
+    const opt = el("option", null, o.name || `${t("account")} ${i + 1}`);
+    opt.value = o.uuid;
+    opt.selected = o.uuid === view;
+    return opt;
+  }));
+  const usage = (view && r.usageByOrg && r.usageByOrg[view]) || r.usage;
+  drawLimits(usage);
+  drawChat(view === r.orgId ? r.chat : null);
+  drawSettings(usage);
 }
 
 async function save(patch) {
@@ -117,6 +128,7 @@ document.addEventListener("change", (e) => {
 });
 $("notifyAt").addEventListener("change", (e) => save({ notifyAt: Number(e.target.value) }));
 $("lang").addEventListener("change", (e) => save({ lang: e.target.value }));
+$("org").addEventListener("change", (e) => save({ viewOrg: e.target.value }));
 $("saveKey").addEventListener("click", async () => {
   const key = $("apiKey").value.trim();
   if (key && !CUT.validKey(key)) { $("keyMsg").textContent = t("keyBad"); return; }
@@ -131,5 +143,7 @@ $("saveKey").addEventListener("click", async () => {
 
 $("refresh").addEventListener("click", refresh);
 $("ver").textContent = "v" + chrome.runtime.getManifest().version;
-chrome.storage.onChanged.addListener((ch, area) => { if (area === "local" && (ch.usage || ch.chat || ch.settings)) load(); });
+chrome.storage.onChanged.addListener((ch, area) => {
+  if (area === "local" && (ch.usage || ch.usageByOrg || ch.chat || ch.settings || ch.orgs)) load();
+});
 load().then(refresh);

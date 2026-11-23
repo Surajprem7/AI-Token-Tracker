@@ -4,6 +4,7 @@ import json, ssl, sys, time, threading
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 ORG = "11111111-2222-4333-8444-555555555555"
+ORG2 = "99999999-2222-4333-8444-555555555555"
 CHAT = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
 NOW = time.time()
 state = {"session": 34, "weekly": 18, "opus": 62, "sent": 0}
@@ -26,12 +27,13 @@ def conversation():
     for i in range(n):
         uid = f"m{i:04d}-0000-4000-8000-000000000000"
         human = i % 2 == 0
-        msgs.append({"uuid": uid, "parent_message_uuid": parent, "sender": "human" if human else "assistant",
+        extra = {"compaction_summary": "Summary of the earlier conversation: the user is planning a launch. " * 20} if i == 2 else {}
+        msgs.append({**extra, "uuid": uid, "parent_message_uuid": parent, "sender": "human" if human else "assistant",
                      "created_at": iso(time.time() - (120 if i == n - 1 else 3600)),
                      "updated_at": iso(time.time() - (120 if i == n - 1 else 3600)),
                      "content": [{"type": "text", "text": "Can you help me plan the launch?" if human else LONG}]})
         parent = uid
-    return {"uuid": CHAT, "name": "Planning the product launch", "model": "claude-opus-4-5",
+    return {"uuid": CHAT, "name": "Planning the product launch", "model": "claude-opus-5-5", "workspace_upgraded": True,
             "current_leaf_message_uuid": parent, "chat_messages": msgs}
 
 PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>Claude</title>
@@ -46,18 +48,22 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>Claude</title>
  .msgs{flex:1;width:100%;max-width:720px;padding:24px;box-sizing:border-box;overflow:auto}
  .bubble{background:#f0eee6;padding:10px 14px;border-radius:12px;margin:10px 0}
  .wrap{width:100%;max-width:720px;padding:0 24px 20px;box-sizing:border-box}
- fieldset{border:1px solid #dedbd0;border-radius:18px;background:#fff;padding:14px;margin:0;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+ .box{border:1px solid #dedbd0;border-radius:18px;background:#fff;padding:14px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+ .tools{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:13px;opacity:.85}
+ .flex{display:flex}.flex-col{flex-direction:column}.flex-grow{flex-grow:1}.overflow-y-auto{overflow-y:auto}.relative{position:relative}
  .ProseMirror{min-height:44px;outline:none}
- button.send{float:right;background:#c96442;color:#fff;border:0;border-radius:8px;padding:6px 12px;cursor:pointer}
+ button.send{background:#c96442;color:#fff;border:0;border-radius:8px;padding:6px 12px;cursor:pointer}
 </style></head><body>
-<nav><a href="/new"><b>+ New chat</b></a><a href="#">Chats</a><a href="#">Projects</a>
- <div class="list">
-  <div><h3>Starred</h3><a href="#">Weekly report</a></div>
-  <div><h3>Recents</h3><a href="/chat/CHAT">Planning the product launch</a><a href="#">Python script help</a><a href="#">Trip to Goa</a></div>
+<nav class="flex"><a href="/new"><b>+ New chat</b></a><a href="#">Chats</a><a href="#">Projects</a>
+ <div class="list flex flex-grow flex-col overflow-y-auto">
+  <div class="flex-1 relative"><div class="px-2 mt-4">
+   <div class="flex flex-col mb-4"><h3>Starred</h3><a href="#">Weekly report</a></div>
+   <div><h3>Recents</h3><a href="/chat/CHAT">Planning the product launch</a><a href="#">Python script help</a><a href="#">Trip to Goa</a></div>
+  </div></div>
  </div></nav>
 <main><div class="msgs"><div class="bubble">Can you help me plan the launch?</div><div class="bubble">Sure! Here is a plan…</div></div>
-<div class="wrap"><fieldset><div class="ProseMirror" contenteditable="true" data-testid="chat-input"></div>
-<button class="send" id="send">Send</button><div style="clear:both"></div></fieldset></div></main>
+<div class="wrap"><div class="box rounded-composer"><div class="relative w-full min-w-0"><div class="ProseMirror" contenteditable="true" data-testid="chat-input"></div></div>
+<div class="tools"><span data-testid="model-selector-dropdown">Opus 5.5</span><button class="send" id="send">Send</button></div></div></div></main>
 <script>
 document.cookie = "lastActiveOrg=ORG; path=/";
 document.getElementById('send').onclick = async () => {
@@ -67,6 +73,11 @@ document.getElementById('send').onclick = async () => {
 };
 </script></body></html>""".replace("CHAT", CHAT).replace("ORG", ORG)
 
+CODE_PAGE = PAGE.replace('data-testid="chat-input"', 'data-testid="code-prompt-input"').replace(
+    '<div class="bubble">Can you help me plan the launch?</div><div class="bubble">Sure! Here is a plan…</div>',
+    '<div class="bubble">Claude Code on the web: fix the failing tests in my repo</div>')
+
+
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
     def _json(self, obj, code=200):
@@ -75,7 +86,13 @@ class H(BaseHTTPRequestHandler):
         self.send_header("content-length", str(len(b))); self.end_headers(); self.wfile.write(b)
     def do_GET(self):
         p = self.path.split("?")[0]
-        if p == "/api/organizations": return self._json([{"uuid": ORG, "capabilities": ["chat", "claude_max"]}])
+        if p == "/api/organizations": return self._json([{"uuid": ORG, "name": "Personal", "capabilities": ["chat", "claude_max"]},
+                                                          {"uuid": ORG2, "name": "Acme Team", "capabilities": ["chat"]}])
+        if p == f"/api/organizations/{ORG2}/usage": return self._json({"limits": [
+            {"kind": "session", "percent": 8, "resets_at": iso(NOW + 4 * 3600)},
+            {"kind": "weekly_all", "percent": 51, "resets_at": iso(NOW + 5 * 86400)}]})
+        if p.startswith("/code"):
+            b = CODE_PAGE.encode(); self.send_response(200); self.send_header("content-type", "text/html"); self.end_headers(); self.wfile.write(b); return
         if p == f"/api/organizations/{ORG}/usage": return self._json(usage())
         if p == f"/api/organizations/{ORG}/chat_conversations/{CHAT}": return self._json(conversation())
         if p.startswith("/api/"): return self._json({"error": "nope"}, 404)
@@ -87,7 +104,7 @@ class H(BaseHTTPRequestHandler):
             state["sent"] += 1
             state["session"] += 3; state["weekly"] += 1; state["opus"] += 2
             self.send_response(200); self.send_header("content-type", "text/event-stream"); self.end_headers()
-            ev = [{"type": "message_start", "message": {"model": "claude-opus-4-5"}},
+            ev = [{"type": "message_start", "message": {"model": "claude-opus-5-5"}},
                   {"type": "content_block_delta", "delta": {"text": "ok"}},
                   {"type": "message_limit", "message_limit": {"type": "within_limit", "windows": {
                       "5h": {"status": "within_limit", "utilization": state["session"] / 100, "resets_at": int(NOW + 2 * 3600 + 17 * 60)},
