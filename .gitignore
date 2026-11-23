@@ -4,3 +4,5 @@ node_modules/
 tests/out/
 tests/ext/
 tests/*.pem
+tests/ext-peak/
+tests/node_modules
