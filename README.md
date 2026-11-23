@@ -3,6 +3,8 @@
 A browser extension that shows your **claude.ai usage right inside claude.ai**.
 No app, no account, no setup: install it and open claude.ai.
 
+![The extension on claude.ai](docs/screenshot.png)
+
 ## What it shows
 
 **In claude.ai's left sidebar: a "Usage" section**
