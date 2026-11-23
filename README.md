@@ -100,6 +100,12 @@ Full policy: [PRIVACY.md](PRIVACY.md)
 claude.ai changes its page from time to time. If the sidebar section or the line under the message box stops showing,
 the popup and the badge keep working. Please open an issue.
 
+## License
+
+[MIT](LICENSE). `tokenizer.js` is built from [gpt-tokenizer](https://github.com/niieani/gpt-tokenizer) (MIT).
+
+Not affiliated with, endorsed by or sponsored by Anthropic. "Claude" is a trademark of Anthropic.
+
 ## Support
 
 If it helps you, you can [sponsor the project on GitHub](https://github.com/sponsors/Surajprem7) ❤️

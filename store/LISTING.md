@@ -100,7 +100,7 @@ and Firefox Add-ons. Copy the text from here; upload the files listed.
 
    > `tokenizer.js` is built from gpt-tokenizer 4.1.2 (MIT) with esbuild. To rebuild: `cd tokenizer-build && npm install && npm run build`. Every other file is unminified source as shipped. `./build.sh` makes the Firefox zip from them with `manifest_firefox.json`.
 
-4. Fill in the listing with the same texts (summary max 250 characters), screenshots, and the privacy policy. License: pick the one you chose for the repo.
+4. Fill in the listing with the same texts (summary max 250 characters), screenshots, and the privacy policy. License: **MIT License**.
 5. Submit. Firefox reviews can take from a few hours to a couple of weeks.
 
 ---
