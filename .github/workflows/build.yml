@@ -85,7 +85,7 @@ jobs:
             ubuntu-latest)
               cp dist/*.whl out/ && tar -czf out/AITokenTracker-linux.tar.gz -C dist AITokenTracker ai-tokens
               (cd src/ai_token_tracker/extension && zip -qr ../../../out/AITokenTracker-BrowserExtension.zip . -x STORE.md)
-              (cd claude-extension && zip -qr ../out/AITokenTracker-Claude-Extension.zip . -x 'tokenizer-build/*' README.md) ;;
+              claude-extension/build.sh && cp claude-extension/dist/*.zip out/ ;;
           esac
       - uses: actions/upload-artifact@v4
         with:
@@ -114,7 +114,9 @@ jobs:
             **Download**
             - **Windows:** `AITokenTracker-Setup.exe` (installs for your user, no admin needed). Portable: `AITokenTracker.exe`.
             - **Mac (M1 or later):** `AITokenTracker-macOS-AppleSilicon.zip`. Unzip, move the app to Applications, then right-click → Open the first time.
-            - **Claude usage extension** (standalone, no app needed): `AITokenTracker-Claude-Extension.zip`. Unzip, open `chrome://extensions`, turn on Developer mode, click Load unpacked and pick the folder. Your usage then shows inside claude.ai.
+            - **Claude usage extension** (standalone, no app needed):
+              - Chrome / Edge / Brave: `AITokenTracker-Claude-<version>-chrome.zip`. Unzip, open `chrome://extensions`, turn on Developer mode, click Load unpacked and pick the folder.
+              - Firefox: `AITokenTracker-Claude-<version>-firefox.zip`. Open `about:debugging#/runtime/this-firefox`, click Load Temporary Add-on and pick the zip.
             - **Browser extension for the app** (claude.ai, chatgpt.com, gemini.google.com): `AITokenTracker-BrowserExtension.zip`. Unzip, then in Chrome or Edge open `chrome://extensions`, turn on Developer mode and click Load unpacked. Connect it with the code on the app's Sources page.
             - **Any computer with Python:** `pip install "ai_token_tracker-<version>-py3-none-any.whl[app]"`, then `ai-tokens-gui`.
 

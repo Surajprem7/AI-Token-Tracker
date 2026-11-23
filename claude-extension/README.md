@@ -37,13 +37,24 @@ Hover over anything for an explanation.
 
 ## Install
 
-**Chrome, Edge, Brave, Arc (any Chromium browser)**
-1. Download `AITokenTracker-Claude-Extension.zip` from the repo's Releases and unzip it (or use this `claude-extension` folder directly).
-2. Open `chrome://extensions` and turn on **Developer mode** (top right).
-3. Click **Load unpacked** and pick the unzipped folder.
-4. Open or reload claude.ai.
+Each release has two install files:
 
-**Firefox (128 or newer)**: open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on** and pick `manifest.json`.
+| File | For |
+|---|---|
+| `AITokenTracker-Claude-<version>-chrome.zip` | Chrome, Edge, Brave, Arc and other Chromium browsers |
+| `AITokenTracker-Claude-<version>-firefox.zip` | Firefox 128 or newer |
+
+**Chrome, Edge, Brave, Arc**
+1. Download the `-chrome.zip` from Releases and unzip it into a folder you'll keep. Chrome runs the extension from that folder.
+2. Open `chrome://extensions` (`edge://extensions` in Edge) and turn on **Developer mode** (top right).
+3. Click **Load unpacked** and pick the unzipped folder (the one with `manifest.json`).
+4. Pin the extension from the puzzle-piece menu, then open or reload claude.ai.
+
+**Firefox**: download the `-firefox.zip`, open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on**
+and pick the zip. Firefox removes temporary add-ons when it closes. To keep it installed, the extension has to be signed
+on addons.mozilla.org.
+
+**Build them yourself**: run `./build.sh` in this folder. The zips appear in `dist/`.
 
 ## Settings (in the popup)
 
@@ -64,7 +75,8 @@ Hover over anything for an explanation.
 
 | File | What it does |
 |---|---|
-| `manifest.json` | Extension setup (Chrome MV3, also works in Firefox) |
+| `manifest.json` / `manifest_firefox.json` | Extension setup for Chrome and for Firefox |
+| `build.sh` | Builds the Chrome and Firefox install zips into `dist/` |
 | `hook.js` | Runs in the page; notices when you send a message and when the reply finishes |
 | `content.js` | Reads your usage and the open chat, draws the sidebar section and the line under the message box |
 | `shared.js` | Usage parsing, formatting and translations, shared by everything |
