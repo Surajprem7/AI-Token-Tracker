@@ -70,6 +70,7 @@
   padding: 6px 10px 2px;
   cursor: default;
 }
+.cut-strip[hidden], .cut-side[hidden] { display: none !important; }
 .cut-strip-left, .cut-strip-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .cut-strip-right { gap: 12px; }
 .cut-strip b { font-weight: 600; }

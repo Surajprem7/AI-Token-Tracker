@@ -77,7 +77,7 @@ and Firefox Add-ons. Copy the text from here; upload the files listed.
    | Host permission `https://claude.ai/*` | Reads the user's own usage and the open chat from claude.ai, and shows the usage bars on the claude.ai page. |
    | Optional host permission `https://api.anthropic.com/*` | Only requested if the user adds their own Anthropic API key, to count tokens exactly with Anthropic's token counting API. |
 
-   **Remote code:** No, I am not using remote code.
+   **Remote code:** No, I am not using remote code. (Copies installed from a GitHub zip fetch the latest version number from api.github.com once a day; the store version skips this, because the browser updates it.)
 
    **Data usage:** tick **Website content** (the open chat's text is read to count its length; it leaves the browser only if the user adds an API key, and then only to Anthropic's token counter). Tick **Authentication information** only if the reviewer asks about the optional API key. Then tick all three certifications (not sold, not used for unrelated purposes, not used for creditworthiness).
 

@@ -87,10 +87,14 @@ function drawSettings(usage) {
 }
 
 async function load() {
-  const r = await chrome.storage.local.get(["usage", "usageByOrg", "orgs", "orgId", "chat", "settings"]);
+  const r = await chrome.storage.local.get(["usage", "usageByOrg", "orgs", "orgId", "chat", "settings", "update"]);
   settings = CUT.settings(r.settings);
   CUT.setLang(settings.lang);
   translatePage();
+  // A newer version on GitHub (only for copies installed from a zip; store copies update themselves).
+  const up = r.update && r.update.version && r.update.version !== chrome.runtime.getManifest().version ? r.update : null;
+  $("update").hidden = !up;
+  if (up) { $("update").textContent = t("updateAvail", { v: up.version }); $("update").href = up.page; }
   // Several accounts (personal, team…): pick which one to look at. Default: the one open on claude.ai.
   const orgs = r.orgs || [];
   const view = orgs.some((o) => o.uuid === settings.viewOrg) ? settings.viewOrg : r.orgId;
@@ -144,6 +148,6 @@ $("saveKey").addEventListener("click", async () => {
 $("refresh").addEventListener("click", refresh);
 $("ver").textContent = "v" + chrome.runtime.getManifest().version;
 chrome.storage.onChanged.addListener((ch, area) => {
-  if (area === "local" && (ch.usage || ch.usageByOrg || ch.chat || ch.settings || ch.orgs)) load();
+  if (area === "local" && (ch.usage || ch.usageByOrg || ch.chat || ch.settings || ch.orgs || ch.update)) load();
 });
 load().then(refresh);

@@ -107,6 +107,16 @@ const check = (ok, what) => { console.log((ok ? 'ok   ' : 'FAIL ') + what); if (
   await pop.selectOption('#org', { label: 'Personal' });
   await pop.click('summary');
 
+  // Update banner: a copy loaded from a folder is a "development" install, which checks GitHub.
+  check((await sw.evaluate(() => chrome.management.getSelf())).installType === 'development', 'loaded copy is a development install');
+  await sw.evaluate(() => chrome.storage.local.set({ update: { version: '9.9.9', page: 'https://github.com/Surajprem7/AI-Token-Tracker/releases/latest' } }));
+  await pop.waitForTimeout(500);
+  check(!(await pop.isHidden('#update')) && /9\.9\.9/.test(await pop.textContent('#update')), 'update banner shows a newer version');
+  await pop.screenshot({ path: out('10-popup-update.png') });
+  await sw.evaluate(() => chrome.storage.local.set({ update: null }));
+  await pop.waitForTimeout(300);
+  check(await pop.isHidden('#update'), 'no banner when up to date');
+
   // Hindi.
   await pop.selectOption('#lang', 'hi');
   await page.bringToFront();

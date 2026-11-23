@@ -63,6 +63,16 @@ on addons.mozilla.org.
 
 **Build them yourself**: run `./build.sh`. The zips appear in `dist/`.
 
+## Updates
+
+- **Installed from a store** (Chrome Web Store, Edge Add-ons, Firefox Add-ons): the browser updates it automatically.
+- **Installed from a zip**: once a day it checks GitHub for a newer release. When there is one, the popup shows
+  *"Version x.y.z is available"*: download the new zip, replace the files in your folder, and click the reload icon on
+  the extension in `chrome://extensions`.
+
+To publish a new version: raise `version` in `manifest.json` and `manifest_firefox.json`, push, then run
+**Actions → Release → Run workflow**. GitHub builds both zips and makes the release.
+
 ## Settings (in the popup)
 
 - Show or hide the sidebar section, the line under the message box and the toolbar badge
@@ -75,11 +85,11 @@ on addons.mozilla.org.
 
 Full policy: [PRIVACY.md](PRIVACY.md)
 
-
 - It only runs on claude.ai and reads what the page already loads for you, with your existing login.
 - Nothing is sent anywhere else. The one exception is the optional API key: then the open chat's text is sent to
   Anthropic's token counter (Anthropic already has it, it's your Claude chat).
 - Settings and numbers are stored only in your browser.
+- A copy installed from a zip asks GitHub once a day for the latest version number. Nothing about you is sent.
 
 ## Files
 
@@ -91,10 +101,13 @@ Full policy: [PRIVACY.md](PRIVACY.md)
 | `content.js` | Reads your usage and the open chat, draws the sidebar section and the line under the message box |
 | `shared.js` | Usage parsing, peak hours, context windows and formatting, shared by everything |
 | `i18n.js` | Translations (10 languages) |
-| `background.js` | Background refresh, toolbar badge, reset notifications, exact token counting |
+| `background.js` | Background refresh, toolbar badge, reset notifications, exact token counting, update check |
 | `popup.html/.js/.css` | The toolbar popup and settings |
 | `styles.css` | Styles for what's added to claude.ai |
 | `store/` | Store listing texts, images and upload steps for Chrome, Edge and Firefox |
+| `tests/` | Browser test against a stand-in claude.ai page (see `tests/README.md`) |
+| `docs/` | Screenshots used in this README |
+| `.github/workflows/release.yml` | Builds the zips and publishes a release |
 | `tokenizer.js` | Token counter, built from [gpt-tokenizer](https://github.com/niieani/gpt-tokenizer) (MIT). Rebuild with `cd tokenizer-build && npm install && npm run build` |
 
 claude.ai changes its page from time to time. If the sidebar section or the line under the message box stops showing,

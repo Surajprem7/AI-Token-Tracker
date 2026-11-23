@@ -7,6 +7,7 @@
 if (typeof importScripts === "function") importScripts("i18n.js", "shared.js");   // Chrome; Firefox loads shared.js itself
 
 const REFRESH_MIN = 5;
+const RELEASES_API = "https://api.github.com/repos/Surajprem7/AI-Token-Tracker/releases/latest";
 const COUNT_MODELS = ["claude-sonnet-4-5", "claude-haiku-4-5"];       // fallbacks for the token counter
 
 async function getSettings() {
@@ -143,17 +144,49 @@ async function countTokens(text, model) {
   return { ok: false };
 }
 
+/* ------------------------------------------------------------ updates */
+
+// Store installs (Chrome Web Store, Edge Add-ons, Firefox Add-ons) are updated by the browser itself.
+// A copy loaded by hand from a GitHub zip ("development" install) checks GitHub once a day instead,
+// and the popup offers the new version.
+const newer = (a, b) => {
+  const x = String(a).split(".").map(Number), y = String(b).split(".").map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0);
+  }
+  return false;
+};
+
+async function checkForUpdate() {
+  try {
+    const self = chrome.management && chrome.management.getSelf ? await chrome.management.getSelf() : null;
+    if (self && self.installType !== "development") { await chrome.storage.local.set({ update: null }); return; }
+    const res = await fetch(RELEASES_API, { headers: { Accept: "application/vnd.github+json" } });
+    if (!res.ok) return;
+    const rel = await res.json();
+    const latest = String(rel.tag_name || "").replace(/^v/, "");
+    const mine = chrome.runtime.getManifest().version;
+    const zip = (rel.assets || []).find((a) => /-chrome\.zip$/.test(a.name));
+    await chrome.storage.local.set({
+      update: latest && newer(latest, mine) ? { version: latest, page: rel.html_url, zip: zip && zip.browser_download_url } : null,
+    });
+  } catch (e) { /* offline: try again tomorrow */ }
+}
+
 /* ------------------------------------------------------------ wiring */
 
 function setup() {
   chrome.alarms.create("refresh", { periodInMinutes: REFRESH_MIN });
+  chrome.alarms.create("update-check", { periodInMinutes: 24 * 60 });
   refresh().then(updateBadge).then(scheduleResets);
+  checkForUpdate();
 }
 
 chrome.runtime.onInstalled.addListener(setup);
 chrome.runtime.onStartup.addListener(setup);
 chrome.alarms.onAlarm.addListener((a) => {
   if (a.name === "refresh") refresh().then(updateBadge);
+  else if (a.name === "update-check") checkForUpdate();
   else if (a.name.startsWith("reset|")) notifyReset(a.name);
 });
 chrome.storage.onChanged.addListener((ch, area) => {
@@ -165,6 +198,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (!msg) return false;
   if (msg.type === "refresh") { refresh().then(async (r) => { await updateBadge(); reply(r); }); return true; }
   if (msg.type === "count") { countTokens(msg.text, msg.model).then(reply); return true; }
+  if (msg.type === "checkUpdate") { checkForUpdate().then(() => reply({ ok: true })); return true; }
   return false;
 });
 if (chrome.notifications) {

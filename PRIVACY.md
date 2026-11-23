@@ -20,6 +20,9 @@ Your usage numbers, the open chat's token count and your settings are stored onl
 
 Nothing is sent to the developer or to any third party. There is no analytics or tracking.
 
+If you installed the extension from a zip file (not from a browser store), it asks GitHub once a day for the
+latest version number, so it can tell you about updates. This request contains no information about you or your use.
+
 The one exception is optional: if you add your own Anthropic API key in the settings, the text of the
 open chat is sent to Anthropic's token counting API (`api.anthropic.com`) to count tokens exactly.
 Your key is stored only in your browser.

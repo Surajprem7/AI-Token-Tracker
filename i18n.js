@@ -37,6 +37,7 @@
       usagePage: "claude.ai usage page", notifTitle: "Claude limit reset", notifBody: "Your {l} limit has reset.",
       notSignedIn: "Not signed in to claude.ai", unreachable: "Couldn't reach claude.ai",
       support: "❤️ Support",
+      updateAvail: "⬆ Version {v} is available: get it",
     },
 
     hi: {
@@ -71,6 +72,7 @@
       usagePage: "claude.ai उपयोग पेज", notifTitle: "Claude सीमा रीसेट", notifBody: "आपकी {l} सीमा रीसेट हो गई है।",
       notSignedIn: "claude.ai में साइन इन नहीं है", unreachable: "claude.ai तक नहीं पहुँच सके",
       support: "❤️ समर्थन करें",
+      updateAvail: "⬆ नया संस्करण {v} उपलब्ध है: डाउनलोड करें",
     },
 
     es: {
@@ -105,6 +107,7 @@
       usagePage: "página de uso de claude.ai", notifTitle: "Límite de Claude reiniciado", notifBody: "Tu límite {l} se ha reiniciado.",
       notSignedIn: "No has iniciado sesión en claude.ai", unreachable: "No se pudo conectar con claude.ai",
       support: "❤️ Apoyar",
+      updateAvail: "⬆ Versión {v} disponible: descárgala",
     },
 
     de: {
@@ -139,6 +142,7 @@
       usagePage: "Nutzungsseite von claude.ai", notifTitle: "Claude-Limit zurückgesetzt", notifBody: "Dein Limit {l} wurde zurückgesetzt.",
       notSignedIn: "Nicht bei claude.ai angemeldet", unreachable: "claude.ai nicht erreichbar",
       support: "❤️ Unterstützen",
+      updateAvail: "⬆ Version {v} ist verfügbar: herunterladen",
     },
 
     fr: {
@@ -173,6 +177,7 @@
       usagePage: "page d'utilisation de claude.ai", notifTitle: "Limite Claude réinitialisée", notifBody: "Votre limite {l} a été réinitialisée.",
       notSignedIn: "Non connecté à claude.ai", unreachable: "Impossible de joindre claude.ai",
       support: "❤️ Soutenir",
+      updateAvail: "⬆ La version {v} est disponible : la télécharger",
     },
 
     it: {
@@ -207,6 +212,7 @@
       usagePage: "pagina di utilizzo di claude.ai", notifTitle: "Limite di Claude azzerato", notifBody: "Il tuo limite {l} si è azzerato.",
       notSignedIn: "Accesso a claude.ai non effettuato", unreachable: "Impossibile raggiungere claude.ai",
       support: "❤️ Sostieni",
+      updateAvail: "⬆ Versione {v} disponibile: scaricala",
     },
 
     pt: {
@@ -241,6 +247,7 @@
       usagePage: "página de uso do claude.ai", notifTitle: "Limite do Claude reiniciado", notifBody: "Seu limite {l} foi reiniciado.",
       notSignedIn: "Não conectado ao claude.ai", unreachable: "Não foi possível acessar o claude.ai",
       support: "❤️ Apoiar",
+      updateAvail: "⬆ Versão {v} disponível: baixar",
     },
 
     id: {
@@ -275,6 +282,7 @@
       usagePage: "halaman penggunaan claude.ai", notifTitle: "Batas Claude direset", notifBody: "Batas {l} Anda sudah direset.",
       notSignedIn: "Belum masuk ke claude.ai", unreachable: "Tidak dapat menjangkau claude.ai",
       support: "❤️ Dukung",
+      updateAvail: "⬆ Versi {v} tersedia: unduh",
     },
 
     ja: {
@@ -309,6 +317,7 @@
       usagePage: "claude.ai の使用量ページ", notifTitle: "Claude の上限がリセット", notifBody: "{l} の上限がリセットされました。",
       notSignedIn: "claude.ai にログインしていません", unreachable: "claude.ai に接続できません",
       support: "❤️ 支援する",
+      updateAvail: "⬆ バージョン {v} が利用可能です:ダウンロード",
     },
 
     ko: {
@@ -343,6 +352,7 @@
       usagePage: "claude.ai 사용량 페이지", notifTitle: "Claude 한도 초기화", notifBody: "{l} 한도가 초기화되었습니다.",
       notSignedIn: "claude.ai에 로그인하지 않음", unreachable: "claude.ai에 연결할 수 없음",
       support: "❤️ 후원하기",
+      updateAvail: "⬆ 버전 {v}을(를) 사용할 수 있습니다: 다운로드",
     },
   };
 
