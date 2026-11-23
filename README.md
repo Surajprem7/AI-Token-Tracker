@@ -115,7 +115,7 @@ the popup and the badge keep working. Please open an issue.
 
 ## License
 
-[MIT](LICENSE). `tokenizer.js` is built from [gpt-tokenizer](https://github.com/niieani/gpt-tokenizer) (MIT).
+[MIT](LICENSE), © 2026 Surajprem7. `tokenizer.js` is built from [gpt-tokenizer](https://github.com/niieani/gpt-tokenizer) (MIT); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 Not affiliated with, endorsed by or sponsored by Anthropic. "Claude" is a trademark of Anthropic.
 
