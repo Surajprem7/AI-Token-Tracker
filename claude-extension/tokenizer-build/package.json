@@ -1,0 +1,12 @@
+{
+  "name": "claude-usage-tokenizer-build",
+  "private": true,
+  "description": "Rebuilds ../tokenizer.js (the o200k tokenizer from gpt-tokenizer, MIT) as a plain browser script.",
+  "scripts": {
+    "build": "esbuild tokenizer-entry.js --bundle --minify --format=iife --outfile=../tokenizer.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "gpt-tokenizer": "4.1.2"
+  }
+}

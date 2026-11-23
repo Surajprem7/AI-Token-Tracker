@@ -38,6 +38,12 @@ Goose, Droid, Craft Agents and Hermes save only totals per session, and Kiro and
 Chats on the ChatGPT, claude.ai or Gemini websites don't reveal token counts; the browser extension (below) estimates them. Phone apps can't be tracked.
 The **Plan limits** card still shows how much of each subscription they used. If you know the numbers, you can also add them by hand.
 
+### Just want your claude.ai usage? (standalone extension)
+
+The **[Claude usage extension](claude-extension/)** works on its own, without this app: it shows your plan's
+usage bars in claude.ai's sidebar, and under the message box the chat's length, whether it's cached, what the next
+message will use and how many messages you have left. Get `AITokenTracker-Claude-Extension.zip` from Releases.
+
 ### Chats on the Claude, ChatGPT and Gemini websites (browser extension)
 
 The websites don't show token counts, so the **AI Token Tracker browser extension** estimates them from the text of each chat
